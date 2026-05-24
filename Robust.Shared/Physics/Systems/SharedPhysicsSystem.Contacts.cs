@@ -28,7 +28,6 @@
 */
 
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
@@ -95,6 +94,22 @@ public abstract partial class SharedPhysicsSystem
     private ObjectPool<Contact> _contactPool = default!;
 
     private readonly LinkedList<Contact> _activeContacts = new();
+    private Contact[] _contactsScratch = Array.Empty<Contact>();
+    private ContactStatus[] _contactStatusScratch = Array.Empty<ContactStatus>();
+    private FixedArray4<Vector2>[] _contactWorldPointsScratch = Array.Empty<FixedArray4<Vector2>>();
+    private bool[] _contactWakeScratch = Array.Empty<bool>();
+
+    private static void EnsureScratchCapacity<T>(ref T[] array, int required)
+    {
+        if (array.Length >= required)
+            return;
+
+        var grown = array.Length == 0 ? 16 : array.Length;
+        while (grown < required)
+            grown *= 2;
+
+        Array.Resize(ref array, grown);
+    }
 
     private sealed class ContactPoolPolicy : IPooledObjectPolicy<Contact>
     {
@@ -398,7 +413,8 @@ public abstract partial class SharedPhysicsSystem
     {
         // Due to the fact some contacts may be removed (and we need to update this array as we iterate).
         // the length may not match the actual contact count, hence we track the index.
-        var contacts = ArrayPool<Contact>.Shared.Rent(ContactCount);
+        EnsureScratchCapacity(ref _contactsScratch, ContactCount);
+        var contacts = _contactsScratch;
         var index = 0;
 
         // Can be changed while enumerating
@@ -556,11 +572,16 @@ public abstract partial class SharedPhysicsSystem
             contacts[index++] = contact;
         }
 
-        var status = ArrayPool<ContactStatus>.Shared.Rent(index);
-        var worldPoints = ArrayPool<FixedArray4<Vector2>>.Shared.Rent(index);
+        EnsureScratchCapacity(ref _contactStatusScratch, index);
+        EnsureScratchCapacity(ref _contactWorldPointsScratch, index);
+        EnsureScratchCapacity(ref _contactWakeScratch, index);
+
+        var status = _contactStatusScratch;
+        var worldPoints = _contactWorldPointsScratch;
+        var wake = _contactWakeScratch;
 
         // Update contacts all at once.
-        BuildManifolds(contacts, index, status, worldPoints);
+        BuildManifolds(contacts, index, status, worldPoints, wake);
 
         // Single-threaded so content doesn't need to worry about race conditions.
         for (var i = 0; i < index; i++)
@@ -582,9 +603,6 @@ public abstract partial class SharedPhysicsSystem
             RunContactEvents(status[i], contact, worldPoints[i]);
         }
 
-        ArrayPool<Contact>.Shared.Return(contacts);
-        ArrayPool<ContactStatus>.Shared.Return(status);
-        ArrayPool<FixedArray4<Vector2>>.Shared.Return(worldPoints);
     }
 
     internal void RunContactEvents(ContactStatus status, Contact contact, FixedArray4<Vector2> worldPoint)
@@ -641,12 +659,10 @@ public abstract partial class SharedPhysicsSystem
         }
     }
 
-    private void BuildManifolds(Contact[] contacts, int count, ContactStatus[] status, FixedArray4<Vector2>[] worldPoints)
+    private void BuildManifolds(Contact[] contacts, int count, ContactStatus[] status, FixedArray4<Vector2>[] worldPoints, bool[] wake)
     {
         if (count == 0)
             return;
-
-        var wake = ArrayPool<bool>.Shared.Rent(count);
 
         _parallel.ProcessNow(new ManifoldsJob()
         {
@@ -672,8 +688,6 @@ public abstract partial class SharedPhysicsSystem
             SetAwake((aUid, bodyA), true);
             SetAwake((bUid, bodyB), true);
         }
-
-        ArrayPool<bool>.Shared.Return(wake);
     }
 
     private record struct ManifoldsJob : IParallelRobustJob
