@@ -437,14 +437,22 @@ internal sealed partial class PvsSystem : EntitySystem
         _leaveTask?.WaitOne();
         _leaveTask = null;
 
-        foreach (var session in _disconnected)
+        lock (PendingAcks)
         {
-            if (PlayerData.Remove(session, out var pvsSession))
+            foreach (var session in _disconnected)
             {
-                ClearSendHistory(pvsSession);
-                FreeSessionDataMemory(pvsSession);
+                PendingAcks.Remove(session);
+                _seenAllEnts.Remove(session);
+
+                if (PlayerData.Remove(session, out var pvsSession))
+                {
+                    ClearSendHistory(pvsSession);
+                    FreeSessionDataMemory(pvsSession);
+                }
             }
         }
+
+        _disconnected.Clear();
     }
 
     internal void CacheSessionData(ICommonSession[] players)
@@ -469,10 +477,16 @@ internal sealed partial class PvsSystem : EntitySystem
             return;
         }
 
-        if (_oldestAck == _lastOldestAck.Value)
+        var forceAckThreshold = (uint) Math.Max(ForceAckThreshold, 0);
+        var minCullTick = _gameTiming.CurTick.Value > forceAckThreshold
+            ? _gameTiming.CurTick.Value - forceAckThreshold
+            : 0;
+
+        var cullTick = new GameTick(Math.Max(_oldestAck, minCullTick));
+        if (cullTick == _lastOldestAck)
             return;
 
-        _lastOldestAck = new(_oldestAck);
+        _lastOldestAck = cullTick;
         CullDeletionHistory(_lastOldestAck);
     }
 }
