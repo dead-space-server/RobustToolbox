@@ -170,9 +170,11 @@ namespace Robust.Shared.Physics.Systems
 
             var moveBuffer = _physicsSystem.MoveBuffer;
             var movedGrids = _physicsSystem.MovedGrids;
+            var movedGridCount = movedGrids.Count;
 
             // Find any entities being driven over that might need to be considered
             FindGridContacts(movedGrids);
+            var moveBufferCount = moveBuffer.Count;
 
             // There is some mariana trench levels of bullshit going on.
             // We essentially need to re-create Box2D's FindNewContacts but in a way that allows us to check every
@@ -189,6 +191,7 @@ namespace Robust.Shared.Physics.Systems
             // EZ
             if (moveBuffer.Count == 0)
             {
+                _physicsSystem.UpdateBroadphaseDiagnosticMetrics(movedGridCount, moveBufferCount, 0);
                 movedGrids.Clear();
                 return;
             }
@@ -204,6 +207,7 @@ namespace Robust.Shared.Physics.Systems
             var count = moveBuffer.Count;
 
             _parallel.ProcessNow(_contactJob, count);
+            _physicsSystem.UpdateBroadphaseDiagnosticMetrics(movedGridCount, moveBufferCount, _contactJob.Pairs.Count);
 
             foreach (var (proxyA, proxyB, flags) in _contactJob.Pairs)
             {
