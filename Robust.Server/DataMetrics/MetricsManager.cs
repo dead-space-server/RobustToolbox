@@ -3,6 +3,7 @@ using System.Diagnostics.Metrics;
 using System.Diagnostics.Tracing;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Prometheus;
 using Prometheus.DotNetRuntime;
@@ -13,6 +14,7 @@ using Robust.Shared.Configuration;
 using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
 using Robust.Shared.Log;
+using Robust.Shared.Physics.Systems;
 using EventSource = System.Diagnostics.Tracing.EventSource;
 
 namespace Robust.Server.DataMetrics;
@@ -138,7 +140,8 @@ internal sealed partial class MetricsManager : IMetricsManagerInternal, IDisposa
             host,
             port,
             registry: Metrics.DefaultRegistry,
-            beforeCollect: BeforeCollectCallback);
+            beforeCollect: BeforeCollectCallback,
+            diagnosticsHandler: PhysicsDiagnosticsCallback);
         _metricServer.Start();
 
         if (_cfg.GetCVar(CVars.MetricsRuntime))
@@ -207,6 +210,57 @@ internal sealed partial class MetricsManager : IMetricsManagerInternal, IDisposa
         }
 
         return builder;
+    }
+
+    private async Task<string> PhysicsDiagnosticsCallback(Uri url, CancellationToken cancel)
+    {
+        var limit = GetQueryInt(url, "limit", 30, 1, 200);
+        var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var _ = cancel.Register(() => tcs.TrySetCanceled(cancel));
+
+        _taskManager.RunOnMainThread(() =>
+        {
+            try
+            {
+                if (!_entitySystemManager.TryGetEntitySystem<SharedPhysicsSystem>(out var physics))
+                {
+                    tcs.TrySetResult("Physics system unavailable.");
+                    return;
+                }
+
+                tcs.TrySetResult(physics.BuildPhysicsDiagnosticsReport(limit));
+            }
+            catch (Exception e)
+            {
+                tcs.TrySetException(e);
+            }
+        });
+
+        return await tcs.Task;
+    }
+
+    private static int GetQueryInt(Uri url, string name, int defaultValue, int min, int max)
+    {
+        var query = url.Query;
+        if (query.Length <= 1)
+            return defaultValue;
+
+        foreach (var part in query[1..].Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separator = part.IndexOf('=');
+            var key = separator >= 0 ? part[..separator] : part;
+            if (!string.Equals(Uri.UnescapeDataString(key), name, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var value = separator >= 0 ? Uri.UnescapeDataString(part[(separator + 1)..]) : string.Empty;
+            if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+                return defaultValue;
+
+            return Math.Clamp(parsed, min, max);
+        }
+
+        return defaultValue;
     }
 
     [EventSource(Name = "Robust.MetricsManager")]

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.IO.Compression;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using SpaceWizards.HttpListener;
@@ -19,6 +20,7 @@ internal sealed partial class MetricsManager
     {
         private readonly ISawmill _sawmill;
         private readonly Func<CancellationToken, Task>? _beforeCollect;
+        private readonly Func<Uri, CancellationToken, Task<string>>? _diagnosticsHandler;
         private readonly HttpListener _listener;
         private readonly CollectorRegistry _registry;
 
@@ -28,12 +30,15 @@ internal sealed partial class MetricsManager
             int port,
             string url = "metrics/",
             CollectorRegistry? registry = null,
-            Func<CancellationToken, Task>? beforeCollect = null)
+            Func<CancellationToken, Task>? beforeCollect = null,
+            Func<Uri, CancellationToken, Task<string>>? diagnosticsHandler = null)
         {
             _sawmill = sawmill;
             _beforeCollect = beforeCollect;
+            _diagnosticsHandler = diagnosticsHandler;
             _listener = new HttpListener();
             _listener.Prefixes.Add($"http://{host}:{port}/{url}");
+            _listener.Prefixes.Add($"http://{host}:{port}/physicsdiag/");
             _registry = registry ?? Metrics.DefaultRegistry;
         }
 
@@ -62,6 +67,12 @@ internal sealed partial class MetricsManager
                         var req = ctx.Request;
                         try
                         {
+                            if (req.Url?.AbsolutePath.StartsWith("/physicsdiag", StringComparison.OrdinalIgnoreCase) == true)
+                            {
+                                await HandleDiagnosticsRequest(req, resp, cancel);
+                                return;
+                            }
+
                             MetricsEvents.Log.ScrapeStart();
 
                             // prometheus-net does have a "before collect" callback of its own.
@@ -128,6 +139,33 @@ internal sealed partial class MetricsManager
                 _listener.Stop();
                 _listener.Close();
             }
+        }
+
+        private async Task HandleDiagnosticsRequest(HttpListenerRequest req, HttpListenerResponse resp, CancellationToken cancel)
+        {
+            if (_diagnosticsHandler == null)
+            {
+                resp.StatusCode = 404;
+                return;
+            }
+
+            if (!string.Equals(req.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(req.HttpMethod, "HEAD", StringComparison.OrdinalIgnoreCase))
+            {
+                resp.StatusCode = 405;
+                return;
+            }
+
+            var text = await _diagnosticsHandler(req.Url!, cancel);
+
+            resp.ContentType = "text/plain; charset=utf-8";
+            resp.StatusCode = 200;
+
+            if (string.Equals(req.HttpMethod, "HEAD", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            await using var writer = new StreamWriter(resp.OutputStream, Encoding.UTF8);
+            await writer.WriteAsync(text.AsMemory(), cancel);
         }
 
         private sealed class WriteWrapStream : Stream
