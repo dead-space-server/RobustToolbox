@@ -39,6 +39,33 @@ namespace Robust.Shared.Physics.Systems
                 Buckets = Histogram.ExponentialBuckets(0.000_001, 1.5, 25)
             });
 
+        public static readonly Histogram TickUsagePhaseHistogram = Metrics.CreateHistogram("robust_entity_physics_phase_usage",
+            "Amount of time spent running a physics simulation phase", new HistogramConfiguration
+            {
+                LabelNames = new[] {"phase"},
+                Buckets = Histogram.ExponentialBuckets(0.000_001, 1.5, 25)
+            });
+
+        private static readonly Gauge AwakeBodiesGauge = Metrics.CreateGauge(
+            "robust_physics_awake_bodies",
+            "Number of awake non-static physics bodies.");
+
+        private static readonly Gauge ActiveContactsGauge = Metrics.CreateGauge(
+            "robust_physics_active_contacts",
+            "Number of active physics contacts.");
+
+        private static readonly Gauge MovedGridsGauge = Metrics.CreateGauge(
+            "robust_physics_moved_grids",
+            "Number of moved grids processed by physics broadphase during the latest tick.");
+
+        private static readonly Gauge MoveBufferGauge = Metrics.CreateGauge(
+            "robust_physics_move_buffer",
+            "Number of moved fixture proxies processed by physics broadphase during the latest tick.");
+
+        private static readonly Gauge NewContactPairsGauge = Metrics.CreateGauge(
+            "robust_physics_new_contact_pairs",
+            "Number of new contact pairs found by physics broadphase during the latest tick.");
+
         [Dependency] private readonly IConfigurationManager _cfg = default!;
         [Dependency] private readonly IManifoldManager _manifoldManager = default!;
         [Dependency] private readonly IParallelManager _parallel = default!;
@@ -59,6 +86,14 @@ namespace Robust.Shared.Physics.Systems
         public TimeSpan? EffectiveCurTime;
 
         public bool MetricsEnabled { get; protected set; }
+
+        private readonly System.Diagnostics.Stopwatch _metricsStopwatch = new();
+        private readonly Histogram.Child _beforeSolveMonitor = TickUsagePhaseHistogram.WithLabels("BeforeSolve");
+        private readonly Histogram.Child _broadphaseMonitor = TickUsagePhaseHistogram.WithLabels("Broadphase");
+        private readonly Histogram.Child _collideMonitor = TickUsagePhaseHistogram.WithLabels("CollideContacts");
+        private readonly Histogram.Child _stepMonitor = TickUsagePhaseHistogram.WithLabels("Step");
+        private readonly Histogram.Child _afterSolveMonitor = TickUsagePhaseHistogram.WithLabels("AfterSolve");
+        private readonly Histogram.Child _finalStepMonitor = TickUsagePhaseHistogram.WithLabels("FinalStep");
 
         private   EntityQuery<CollideOnAnchorComponent> _anchorQuery;
         private   EntityQuery<FixturesComponent> _fixturesQuery;
@@ -268,13 +303,25 @@ namespace Robust.Shared.Physics.Systems
             for (int i = 0; i < _substeps; i++)
             {
                 var updateBeforeSolve = new PhysicsUpdateBeforeSolveEvent(prediction, frameTime);
+                if (MetricsEnabled)
+                    _metricsStopwatch.Restart();
+
                 RaiseLocalEvent(ref updateBeforeSolve);
+
+                if (MetricsEnabled)
+                    _beforeSolveMonitor.Observe(_metricsStopwatch.Elapsed.TotalSeconds);
 
                 // Find new contacts and (TODO: temporary) update any per-map virtual controllers
 
                 // Box2D does this at the end of a step and also here when there's a fixture update.
                 // Given external stuff can move bodies we'll just do this here.
+                if (MetricsEnabled)
+                    _metricsStopwatch.Restart();
+
                 _broadphase.FindNewContacts();
+
+                if (MetricsEnabled)
+                    _broadphaseMonitor.Observe(_metricsStopwatch.Elapsed.TotalSeconds);
 
                 // TODO PHYSICS Fix Collision Mispredicts
                 // If a physics update induces a position update that brings fixtures into contact, the collision starts in the NEXT tick,
@@ -298,23 +345,67 @@ namespace Robust.Shared.Physics.Systems
                 // of to fix this would be to always call `CollideContacts` again at the very end of a physics update.
                 // But that might be unnecessarily expensive for what are hopefully only infrequent mispredicts.
 
+                if (MetricsEnabled)
+                    _metricsStopwatch.Restart();
+
                 CollideContacts();
+
+                if (MetricsEnabled)
+                    _collideMonitor.Observe(_metricsStopwatch.Elapsed.TotalSeconds);
+
+                if (MetricsEnabled)
+                    _metricsStopwatch.Restart();
 
                 Step(frameTime, prediction);
 
+                if (MetricsEnabled)
+                    _stepMonitor.Observe(_metricsStopwatch.Elapsed.TotalSeconds);
+
                 var updateAfterSolve = new PhysicsUpdateAfterSolveEvent(prediction, frameTime);
+                if (MetricsEnabled)
+                    _metricsStopwatch.Restart();
+
                 RaiseLocalEvent(ref updateAfterSolve);
+
+                if (MetricsEnabled)
+                    _afterSolveMonitor.Observe(_metricsStopwatch.Elapsed.TotalSeconds);
 
                 // On last substep (or main step where no substeps occured) we'll update all of the lerp data.
                 if (i == _substeps - 1)
                 {
+                    if (MetricsEnabled)
+                        _metricsStopwatch.Restart();
+
                     FinalStep();
+
+                    if (MetricsEnabled)
+                        _finalStepMonitor.Observe(_metricsStopwatch.Elapsed.TotalSeconds);
                 }
 
                 EffectiveCurTime = EffectiveCurTime.Value + TimeSpan.FromSeconds(frameTime);
             }
 
+            UpdatePhysicsDiagnosticMetrics();
             EffectiveCurTime = null;
+        }
+
+        internal void UpdateBroadphaseDiagnosticMetrics(int movedGrids, int moveBuffer, int newContactPairs)
+        {
+            if (!MetricsEnabled)
+                return;
+
+            MovedGridsGauge.Set(movedGrids);
+            MoveBufferGauge.Set(moveBuffer);
+            NewContactPairsGauge.Set(newContactPairs);
+        }
+
+        private void UpdatePhysicsDiagnosticMetrics()
+        {
+            if (!MetricsEnabled)
+                return;
+
+            AwakeBodiesGauge.Set(AwakeBodies.Count);
+            ActiveContactsGauge.Set(ContactCount);
         }
 
         protected virtual void FinalStep()
