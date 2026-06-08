@@ -486,9 +486,25 @@ public partial class SharedPhysicsSystem
         }
 
         if (body.Awake)
+        {
+            TouchBodyProxies(uid);
             AddAwakeBody((uid, body, Transform(uid)));
+        }
         else
+        {
             RemoveSleepBody((uid, body, Transform(uid)));
+        }
+    }
+
+    private void TouchBodyProxies(EntityUid uid)
+    {
+        if (!_fixturesQuery.TryGetComponent(uid, out var fixtures))
+            return;
+
+        foreach (var fixture in fixtures.Fixtures.Values)
+        {
+            _broadphase.TouchProxies(fixture);
+        }
     }
 
     public void TrySetBodyType(EntityUid uid, BodyType value, FixturesComponent? manager = null, PhysicsComponent? body = null, TransformComponent? xform = null)
