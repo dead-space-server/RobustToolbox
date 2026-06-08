@@ -409,6 +409,59 @@ public abstract partial class SharedPhysicsSystem
         _contactPool.Return(contact);
     }
 
+    private void DestroyContactSilent(Contact contact)
+    {
+        // Sleeping hard contacts are only a cached solver pair. Dropping them silently avoids fake EndCollide events.
+        if ((contact.Flags & (ContactFlags.Deleting | ContactFlags.Deleted)) != 0x0)
+            return;
+
+        DebugTools.Assert((contact.Flags & ContactFlags.PreInit) == 0);
+
+        var fixtureA = contact.FixtureA!;
+        var fixtureB = contact.FixtureB!;
+        var bodyA = contact.BodyA!;
+        var bodyB = contact.BodyB!;
+
+        contact.Flags |= ContactFlags.Deleting;
+
+        _activeContacts.Remove(contact.MapNode);
+
+        DebugTools.Assert(fixtureA.Contacts.ContainsKey(fixtureB));
+        fixtureA.Contacts.Remove(fixtureB);
+        DebugTools.Assert(bodyA.Contacts.Contains(contact.BodyANode.Value));
+        bodyA.Contacts.Remove(contact.BodyANode);
+
+        DebugTools.Assert(fixtureB.Contacts.ContainsKey(fixtureA));
+        fixtureB.Contacts.Remove(fixtureA);
+        DebugTools.Assert(bodyB.Contacts.Contains(contact.BodyBNode.Value));
+        bodyB.Contacts.Remove(contact.BodyBNode);
+
+        contact.Flags = ContactFlags.Deleted;
+        _contactPool.Return(contact);
+    }
+
+    private static bool ShouldPruneInactiveContact(Contact contact, PhysicsComponent bodyA, PhysicsComponent bodyB)
+    {
+        if (!contact.Hard || (contact.Flags & ContactFlags.Grid) != 0)
+            return false;
+
+        return (IsPrunableSleepingDynamic(bodyA) && IsPrunablePassiveBody(bodyB)) ||
+               (IsPrunableSleepingDynamic(bodyB) && IsPrunablePassiveBody(bodyA));
+    }
+
+    private static bool IsPrunableSleepingDynamic(PhysicsComponent body)
+    {
+        return body.BodyType == BodyType.Dynamic &&
+               !body.Awake &&
+               body.SleepingAllowed;
+    }
+
+    private static bool IsPrunablePassiveBody(PhysicsComponent body)
+    {
+        return body.BodyType == BodyType.Static ||
+               IsPrunableSleepingDynamic(body);
+    }
+
     internal void CollideContacts()
     {
         // Due to the fact some contacts may be removed (and we need to update this array as we iterate).
@@ -481,6 +534,9 @@ public abstract partial class SharedPhysicsSystem
             // At least one body must be awake and it must be dynamic or kinematic.
             if (activeA == false && activeB == false)
             {
+                if (ShouldPruneInactiveContact(contact, bodyA, bodyB))
+                    DestroyContactSilent(contact);
+
                 continue;
             }
 
