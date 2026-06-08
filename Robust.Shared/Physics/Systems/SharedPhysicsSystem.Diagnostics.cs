@@ -22,6 +22,10 @@ public abstract partial class SharedPhysicsSystem
         var activeContactPairs = new Dictionary<string, ContactPairDiagnostics>(StringComparer.Ordinal);
         var touchingContactPairs = new Dictionary<string, ContactPairDiagnostics>(StringComparer.Ordinal);
         var contactBodyGroups = new Dictionary<string, ContactBodyDiagnostics>(StringComparer.Ordinal);
+        var inactiveContactPairs = new Dictionary<string, ContactPairDiagnostics>(StringComparer.Ordinal);
+        var inactiveTouchingContactPairs = new Dictionary<string, ContactPairDiagnostics>(StringComparer.Ordinal);
+        var inactiveContactBodyGroups = new Dictionary<string, ContactBodyDiagnostics>(StringComparer.Ordinal);
+        var inactiveContactStateGroups = new Dictionary<string, ContactPairDiagnostics>(StringComparer.Ordinal);
         var seenContacts = new HashSet<ContactKey>();
 
         var hardContactCount = 0;
@@ -39,6 +43,12 @@ public abstract partial class SharedPhysicsSystem
         var activeTouchingContacts = 0;
         var activeHardContacts = 0;
         var inactiveContacts = 0;
+        var inactiveTouchingContacts = 0;
+        var inactiveHardContacts = 0;
+        var inactiveSensorContacts = 0;
+        var inactiveBothStaticContacts = 0;
+        var inactiveStaticSleepingContacts = 0;
+        var inactiveBothSleepingContacts = 0;
         var disabledContacts = 0;
         var deletingContacts = 0;
         var sensorContacts = 0;
@@ -212,6 +222,31 @@ public abstract partial class SharedPhysicsSystem
             if (!activeA && !activeB)
             {
                 inactiveContacts++;
+                inactiveTouchingContacts += contact.IsTouching ? 1 : 0;
+                inactiveHardContacts += contact.Hard ? 1 : 0;
+                inactiveSensorContacts += contact.Hard ? 0 : 1;
+
+                if (bodyA.BodyType == BodyType.Static && bodyB.BodyType == BodyType.Static)
+                {
+                    inactiveBothStaticContacts++;
+                }
+                else if (bodyA.BodyType == BodyType.Static || bodyB.BodyType == BodyType.Static)
+                {
+                    inactiveStaticSleepingContacts++;
+                }
+                else
+                {
+                    inactiveBothSleepingContacts++;
+                }
+
+                AddContactPair(inactiveContactPairs, contact);
+                AddContactBody(inactiveContactBodyGroups, contact.EntityA, bodyA, contact);
+                AddContactBody(inactiveContactBodyGroups, contact.EntityB, bodyB, contact);
+                AddContactState(inactiveContactStateGroups, contact, bodyA, bodyB);
+
+                if (contact.IsTouching)
+                    AddContactPair(inactiveTouchingContactPairs, contact);
+
                 continue;
             }
 
@@ -240,6 +275,8 @@ public abstract partial class SharedPhysicsSystem
             $"zeroContact={zeroContactCount}, zeroContactSettled={zeroContactSettledCount}, zeroContactSleepReady={zeroContactSleepReadyCount}, zeroContactOnGround={zeroContactOnGroundCount}");
         builder.AppendLine(CultureInfo.InvariantCulture,
             $"contacts total={ContactCount}, active={activeContacts}, activeTouching={activeTouchingContacts}, activeHard={activeHardContacts}, inactive={inactiveContacts}, disabled={disabledContacts}, deleting={deletingContacts}, sensors={sensorContacts}, preInit={preInitContacts}, filter={filterContacts}, grid={gridContacts}");
+        builder.AppendLine(CultureInfo.InvariantCulture,
+            $"inactive contacts touching={inactiveTouchingContacts}, hard={inactiveHardContacts}, sensors={inactiveSensorContacts}, bothStatic={inactiveBothStaticContacts}, staticSleeping={inactiveStaticSleepingContacts}, bothSleeping={inactiveBothSleepingContacts}");
 
         builder.AppendLine();
         builder.AppendLine("awake body states:");
@@ -347,6 +384,54 @@ public abstract partial class SharedPhysicsSystem
                 $"{group.ContactRefs,5} {group.Prototype} bodies={group.Bodies.Count} touchingRefs={group.TouchingRefs} hardRefs={group.HardRefs} awakeRefs={group.AwakeRefs}");
         }
 
+        builder.AppendLine();
+        builder.AppendLine("top inactive contact states:");
+        foreach (var pair in inactiveContactStateGroups.Values
+                     .OrderByDescending(pair => pair.Count)
+                     .ThenByDescending(pair => pair.Touching)
+                     .ThenBy(pair => pair.Label, StringComparer.Ordinal)
+                     .Take(limit))
+        {
+            builder.AppendLine(CultureInfo.InvariantCulture,
+                $"{pair.Count,5} {pair.Label} touching={pair.Touching} hard={pair.Hard} sensors={pair.Sensor}");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("top inactive contact pairs:");
+        foreach (var pair in inactiveContactPairs.Values
+                     .OrderByDescending(pair => pair.Count)
+                     .ThenByDescending(pair => pair.Touching)
+                     .ThenBy(pair => pair.Label, StringComparer.Ordinal)
+                     .Take(limit))
+        {
+            builder.AppendLine(CultureInfo.InvariantCulture,
+                $"{pair.Count,5} {pair.Label} touching={pair.Touching} hard={pair.Hard} sensors={pair.Sensor}");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("top inactive touching contact pairs:");
+        foreach (var pair in inactiveTouchingContactPairs.Values
+                     .OrderByDescending(pair => pair.Count)
+                     .ThenByDescending(pair => pair.Hard)
+                     .ThenBy(pair => pair.Label, StringComparer.Ordinal)
+                     .Take(limit))
+        {
+            builder.AppendLine(CultureInfo.InvariantCulture,
+                $"{pair.Count,5} {pair.Label} hard={pair.Hard} sensors={pair.Sensor}");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("top inactive contact body prototypes:");
+        foreach (var group in inactiveContactBodyGroups.Values
+                     .OrderByDescending(group => group.ContactRefs)
+                     .ThenByDescending(group => group.TouchingRefs)
+                     .ThenBy(group => group.Prototype, StringComparer.Ordinal)
+                     .Take(limit))
+        {
+            builder.AppendLine(CultureInfo.InvariantCulture,
+                $"{group.ContactRefs,5} {group.Prototype} bodies={group.Bodies.Count} touchingRefs={group.TouchingRefs} hardRefs={group.HardRefs} awakeRefs={group.AwakeRefs}");
+        }
+
         return builder.ToString();
     }
 
@@ -389,6 +474,37 @@ public abstract partial class SharedPhysicsSystem
         group.TouchingRefs += contact.IsTouching ? 1 : 0;
         group.HardRefs += contact.Hard ? 1 : 0;
         group.AwakeRefs += body.Awake ? 1 : 0;
+    }
+
+    private void AddContactState(
+        Dictionary<string, ContactPairDiagnostics> contactStates,
+        Contact contact,
+        PhysicsComponent bodyA,
+        PhysicsComponent bodyB)
+    {
+        var stateA = GetContactStateLabel(bodyA);
+        var stateB = GetContactStateLabel(bodyB);
+
+        if (string.CompareOrdinal(stateA, stateB) > 0)
+            (stateA, stateB) = (stateB, stateA);
+
+        var label = $"{stateA} <-> {stateB}";
+        if (!contactStates.TryGetValue(label, out var pair))
+        {
+            pair = new ContactPairDiagnostics(label);
+            contactStates.Add(label, pair);
+        }
+
+        pair.Count++;
+        pair.Touching += contact.IsTouching ? 1 : 0;
+        pair.Hard += contact.Hard ? 1 : 0;
+        pair.Sensor += contact.Hard ? 0 : 1;
+    }
+
+    private static string GetContactStateLabel(PhysicsComponent body)
+    {
+        var awake = body.Awake ? "awake" : "sleep";
+        return $"{body.BodyType}/{body.BodyStatus}/{awake}";
     }
 
     private string GetPrototype(EntityUid uid)
