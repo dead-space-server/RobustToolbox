@@ -442,9 +442,18 @@ public abstract partial class SharedPhysicsSystem
 
     private static bool ShouldPruneInactiveContact(Contact contact, PhysicsComponent bodyA, PhysicsComponent bodyB)
     {
-        if (!contact.Hard || (contact.Flags & ContactFlags.Grid) != 0)
+        if (!contact.Hard)
             return false;
 
+        if ((contact.Flags & ContactFlags.Grid) != 0)
+            return ShouldPruneInactiveGridContact(bodyA, bodyB);
+
+        return (IsPrunableSleepingDynamic(bodyA) && IsPrunablePassiveBody(bodyB)) ||
+               (IsPrunableSleepingDynamic(bodyB) && IsPrunablePassiveBody(bodyA));
+    }
+
+    private static bool ShouldPruneInactiveGridContact(PhysicsComponent bodyA, PhysicsComponent bodyB)
+    {
         return (IsPrunableSleepingDynamic(bodyA) && IsPrunablePassiveBody(bodyB)) ||
                (IsPrunableSleepingDynamic(bodyB) && IsPrunablePassiveBody(bodyA));
     }
