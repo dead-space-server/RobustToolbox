@@ -26,6 +26,8 @@ public abstract partial class SharedPhysicsSystem
         var inactiveTouchingContactPairs = new Dictionary<string, ContactPairDiagnostics>(StringComparer.Ordinal);
         var inactiveContactBodyGroups = new Dictionary<string, ContactBodyDiagnostics>(StringComparer.Ordinal);
         var inactiveContactStateGroups = new Dictionary<string, ContactPairDiagnostics>(StringComparer.Ordinal);
+        var gridContactPairs = new Dictionary<string, GridContactPairDiagnostics>(StringComparer.Ordinal);
+        var gridContactBodies = new Dictionary<EntityUid, GridContactBodyDiagnostics>();
         var seenContacts = new HashSet<ContactKey>();
 
         var hardContactCount = 0;
@@ -55,6 +57,11 @@ public abstract partial class SharedPhysicsSystem
         var preInitContacts = 0;
         var filterContacts = 0;
         var gridContacts = 0;
+        var gridTouchingContacts = 0;
+        var gridHardContacts = 0;
+        var gridSensorContacts = 0;
+        var gridActiveContacts = 0;
+        var gridInactiveContacts = 0;
 
         foreach (var ent in AwakeBodies)
         {
@@ -206,9 +213,6 @@ public abstract partial class SharedPhysicsSystem
             if ((contact.Flags & ContactFlags.Filter) != 0)
                 filterContacts++;
 
-            if ((contact.Flags & ContactFlags.Grid) != 0)
-                gridContacts++;
-
             if (!contact.Hard)
                 sensorContacts++;
 
@@ -219,6 +223,22 @@ public abstract partial class SharedPhysicsSystem
 
             var activeA = bodyA.Awake && bodyA.BodyType != BodyType.Static;
             var activeB = bodyB.Awake && bodyB.BodyType != BodyType.Static;
+            var active = activeA || activeB;
+            var grid = (contact.Flags & ContactFlags.Grid) != 0;
+
+            if (grid)
+            {
+                gridContacts++;
+                gridTouchingContacts += contact.IsTouching ? 1 : 0;
+                gridHardContacts += contact.Hard ? 1 : 0;
+                gridSensorContacts += contact.Hard ? 0 : 1;
+                gridActiveContacts += active ? 1 : 0;
+                gridInactiveContacts += active ? 0 : 1;
+                AddGridContactPair(gridContactPairs, contact, bodyA, bodyB, active);
+                AddGridContactBody(gridContactBodies, contact.EntityA, bodyA, contact, active);
+                AddGridContactBody(gridContactBodies, contact.EntityB, bodyB, contact, active);
+            }
+
             if (!activeA && !activeB)
             {
                 inactiveContacts++;
@@ -277,6 +297,8 @@ public abstract partial class SharedPhysicsSystem
             $"contacts total={ContactCount}, active={activeContacts}, activeTouching={activeTouchingContacts}, activeHard={activeHardContacts}, inactive={inactiveContacts}, disabled={disabledContacts}, deleting={deletingContacts}, sensors={sensorContacts}, preInit={preInitContacts}, filter={filterContacts}, grid={gridContacts}");
         builder.AppendLine(CultureInfo.InvariantCulture,
             $"inactive contacts touching={inactiveTouchingContacts}, hard={inactiveHardContacts}, sensors={inactiveSensorContacts}, bothStatic={inactiveBothStaticContacts}, staticSleeping={inactiveStaticSleepingContacts}, bothSleeping={inactiveBothSleepingContacts}");
+        builder.AppendLine(CultureInfo.InvariantCulture,
+            $"grid contacts touching={gridTouchingContacts}, hard={gridHardContacts}, sensors={gridSensorContacts}, active={gridActiveContacts}, inactive={gridInactiveContacts}");
 
         builder.AppendLine();
         builder.AppendLine("awake body states:");
@@ -382,6 +404,30 @@ public abstract partial class SharedPhysicsSystem
         {
             builder.AppendLine(CultureInfo.InvariantCulture,
                 $"{group.ContactRefs,5} {group.Prototype} bodies={group.Bodies.Count} touchingRefs={group.TouchingRefs} hardRefs={group.HardRefs} awakeRefs={group.AwakeRefs}");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("top grid contact pairs:");
+        foreach (var pair in gridContactPairs.Values
+                     .OrderByDescending(pair => pair.Hard)
+                     .ThenByDescending(pair => pair.Count)
+                     .ThenBy(pair => pair.Label, StringComparer.Ordinal)
+                     .Take(limit))
+        {
+            builder.AppendLine(CultureInfo.InvariantCulture,
+                $"{pair.Count,5} {pair.Label} touching={pair.Touching} hard={pair.Hard} sensors={pair.Sensor} active={pair.Active} inactive={pair.Inactive}");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("top grid contact bodies:");
+        foreach (var body in gridContactBodies.Values
+                     .OrderByDescending(body => body.HardRefs)
+                     .ThenByDescending(body => body.ContactRefs)
+                     .ThenBy(body => body.Uid.Id)
+                     .Take(limit))
+        {
+            builder.AppendLine(CultureInfo.InvariantCulture,
+                $"{body.ContactRefs,5} {body.Label} touchingRefs={body.TouchingRefs} hardRefs={body.HardRefs} sensorRefs={body.SensorRefs} activeRefs={body.ActiveRefs} inactiveRefs={body.InactiveRefs}");
         }
 
         builder.AppendLine();
@@ -501,6 +547,55 @@ public abstract partial class SharedPhysicsSystem
         pair.Sensor += contact.Hard ? 0 : 1;
     }
 
+    private void AddGridContactPair(
+        Dictionary<string, GridContactPairDiagnostics> gridContactPairs,
+        Contact contact,
+        PhysicsComponent bodyA,
+        PhysicsComponent bodyB,
+        bool active)
+    {
+        var labelA = GetGridContactLabel(contact.EntityA, bodyA, contact.XformA);
+        var labelB = GetGridContactLabel(contact.EntityB, bodyB, contact.XformB);
+
+        if (string.CompareOrdinal(labelA, labelB) > 0)
+            (labelA, labelB) = (labelB, labelA);
+
+        var label = $"{labelA} <-> {labelB}";
+        if (!gridContactPairs.TryGetValue(label, out var pair))
+        {
+            pair = new GridContactPairDiagnostics(label);
+            gridContactPairs.Add(label, pair);
+        }
+
+        pair.Count++;
+        pair.Touching += contact.IsTouching ? 1 : 0;
+        pair.Hard += contact.Hard ? 1 : 0;
+        pair.Sensor += contact.Hard ? 0 : 1;
+        pair.Active += active ? 1 : 0;
+        pair.Inactive += active ? 0 : 1;
+    }
+
+    private void AddGridContactBody(
+        Dictionary<EntityUid, GridContactBodyDiagnostics> gridContactBodies,
+        EntityUid uid,
+        PhysicsComponent body,
+        Contact contact,
+        bool active)
+    {
+        if (!gridContactBodies.TryGetValue(uid, out var group))
+        {
+            group = new GridContactBodyDiagnostics(uid, GetGridContactLabel(uid, body, uid == contact.EntityA ? contact.XformA : contact.XformB));
+            gridContactBodies.Add(uid, group);
+        }
+
+        group.ContactRefs++;
+        group.TouchingRefs += contact.IsTouching ? 1 : 0;
+        group.HardRefs += contact.Hard ? 1 : 0;
+        group.SensorRefs += contact.Hard ? 0 : 1;
+        group.ActiveRefs += active ? 1 : 0;
+        group.InactiveRefs += active ? 0 : 1;
+    }
+
     private static string GetContactStateLabel(PhysicsComponent body)
     {
         var awake = body.Awake ? "awake" : "sleep";
@@ -519,6 +614,17 @@ public abstract partial class SharedPhysicsSystem
         return TryComp(uid, out MetaDataComponent? meta)
             ? meta.EntityName
             : "<missing-meta>";
+    }
+
+    private string GetGridContactLabel(EntityUid uid, PhysicsComponent body, TransformComponent? xform)
+    {
+        var prototype = GetPrototype(uid);
+        var name = GetEntityName(uid);
+        var map = xform?.MapID.ToString() ?? "none";
+        var parentGrid = xform?.GridUid?.ToString() ?? "none";
+        var awake = body.Awake ? "awake" : "sleep";
+
+        return $"{uid.Id} {prototype} name=\"{name}\" map={map} parentGrid={parentGrid} {body.BodyType}/{body.BodyStatus}/{awake}";
     }
 
     private static void AppendBodyLine(StringBuilder builder, BodyDiagnostics body)
@@ -581,6 +687,29 @@ public abstract partial class SharedPhysicsSystem
         public int TouchingRefs;
         public int HardRefs;
         public int AwakeRefs;
+    }
+
+    private sealed class GridContactPairDiagnostics(string label)
+    {
+        public readonly string Label = label;
+        public int Count;
+        public int Touching;
+        public int Hard;
+        public int Sensor;
+        public int Active;
+        public int Inactive;
+    }
+
+    private sealed class GridContactBodyDiagnostics(EntityUid uid, string label)
+    {
+        public readonly EntityUid Uid = uid;
+        public readonly string Label = label;
+        public int ContactRefs;
+        public int TouchingRefs;
+        public int HardRefs;
+        public int SensorRefs;
+        public int ActiveRefs;
+        public int InactiveRefs;
     }
 
     private readonly record struct BodyDiagnostics(
