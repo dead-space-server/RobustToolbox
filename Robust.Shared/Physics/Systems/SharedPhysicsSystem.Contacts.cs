@@ -411,7 +411,7 @@ public abstract partial class SharedPhysicsSystem
 
     private void DestroyContactSilent(Contact contact)
     {
-        // Sleeping hard contacts are only a cached solver pair. Dropping them silently avoids fake EndCollide events.
+        // These are cached inactive pairs. Dropping them silently avoids fake EndCollide events.
         if ((contact.Flags & (ContactFlags.Deleting | ContactFlags.Deleted)) != 0x0)
             return;
 
@@ -443,13 +443,21 @@ public abstract partial class SharedPhysicsSystem
     private static bool ShouldPruneInactiveContact(Contact contact, PhysicsComponent bodyA, PhysicsComponent bodyB)
     {
         if (!contact.Hard)
-            return false;
+            return ShouldPruneInactiveSensorContact(contact, bodyA, bodyB);
 
         if ((contact.Flags & ContactFlags.Grid) != 0)
             return ShouldPruneInactiveGridContact(bodyA, bodyB);
 
         return (IsPrunableSleepingDynamic(bodyA) && IsPrunablePassiveBody(bodyB)) ||
                (IsPrunableSleepingDynamic(bodyB) && IsPrunablePassiveBody(bodyA));
+    }
+
+    private static bool ShouldPruneInactiveSensorContact(Contact contact, PhysicsComponent bodyA, PhysicsComponent bodyB)
+    {
+        // Sensor contacts can back gameplay state via Start/EndCollide, so only prune cached pairs that already are not touching.
+        return !contact.IsTouching &&
+               IsPrunableInactiveSensorBody(bodyA) &&
+               IsPrunableInactiveSensorBody(bodyB);
     }
 
     private static bool ShouldPruneInactiveGridContact(PhysicsComponent bodyA, PhysicsComponent bodyB)
@@ -469,6 +477,12 @@ public abstract partial class SharedPhysicsSystem
     {
         return body.BodyType == BodyType.Static ||
                IsPrunableSleepingDynamic(body);
+    }
+
+    private static bool IsPrunableInactiveSensorBody(PhysicsComponent body)
+    {
+        return body.BodyType == BodyType.Static ||
+               (body.BodyType != BodyType.Static && !body.Awake && body.SleepingAllowed);
     }
 
     internal void CollideContacts()
