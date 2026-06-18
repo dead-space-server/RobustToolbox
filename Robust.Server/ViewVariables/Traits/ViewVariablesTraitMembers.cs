@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using Robust.Shared.IoC;
 using Robust.Shared.Log;
 using Robust.Shared.Prototypes;
@@ -211,6 +212,42 @@ namespace Robust.Server.ViewVariables.Traits
                 default:
                     throw new InvalidOperationException();
             }
+        }
+
+        public override string? DescribePropertyPath(object[] property)
+        {
+            if (property.Length == 0 || property[0] is not ViewVariablesMemberSelector selector)
+                return base.DescribePropertyPath(property);
+
+            if (selector.Index >= _members.Count)
+                return null;
+
+            var member = _members[selector.Index];
+            var builder = new StringBuilder(member.Name);
+
+            for (var i = 1; i < property.Length; i++)
+            {
+                switch (property[i])
+                {
+                    case ViewVariablesEnumerableIndexSelector enumerable:
+                        builder.Append('[').Append(enumerable.Index).Append(']');
+                        break;
+                    case ViewVariablesSelectorKeyValuePair kvPair:
+                        builder.Append(kvPair.Key ? ".Key" : ".Value");
+                        break;
+                    case ViewVariablesTupleIndexSelector tuple:
+                        builder.Append(".Item").Append(tuple.Index);
+                        break;
+                    case ViewVariablesMemberSelector nestedMember:
+                        builder.Append(".member#").Append(nestedMember.Index);
+                        break;
+                    default:
+                        builder.Append('.').Append(property[i].GetType().Name);
+                        break;
+                }
+            }
+
+            return builder.ToString();
         }
     }
 }

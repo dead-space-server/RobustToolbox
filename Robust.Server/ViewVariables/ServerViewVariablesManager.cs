@@ -95,7 +95,23 @@ namespace Robust.Server.ViewVariables
                     return;
                 }
 
-                session.Modify(message.PropertyIndex, value);
+                var hasOldValue = session.TryGetRelativeObject(message.PropertyIndex, out var oldValue);
+                var propertyPath = session.DescribePropertyPath(message.PropertyIndex);
+
+                if (!session.Modify(message.PropertyIndex, value))
+                    return;
+
+                var ev = new ViewVariablesModifyRemoteEvent(
+                    session.PlayerUser,
+                    session.SessionId,
+                    session.Object,
+                    session.ObjectType,
+                    propertyPath,
+                    hasOldValue,
+                    oldValue,
+                    value,
+                    message.ReinterpretValue);
+                _entityManager.EventBus.RaiseEvent(EventSource.Local, ev);
             }
             catch (ArgumentOutOfRangeException)
             {

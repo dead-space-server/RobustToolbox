@@ -85,6 +85,11 @@ namespace Robust.Server.ViewVariables
             return false;
         }
 
+        public virtual string? DescribePropertyPath(object[] property)
+        {
+            return null;
+        }
+
         /// <summary>
         ///     Swaps values like references over to reference tokens to prevent issues.
         /// </summary>

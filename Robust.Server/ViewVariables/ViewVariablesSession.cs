@@ -88,20 +88,39 @@ namespace Robust.Server.ViewVariables
             return null;
         }
 
-        public void Modify(object[] propertyIndex, object value)
+        public bool Modify(object[] propertyIndex, object value)
         {
+            var modified = false;
+
             foreach (var trait in _traits)
             {
                 if (trait.TryModifyProperty(propertyIndex, value))
                 {
+                    modified = true;
                     break;
                 }
             }
+
+            if (!modified)
+                return false;
 
             // Auto-dirty component. Only works when modifying a field that is directly on a component,
             // Does not work for nested objects.
             if (Object is Component { NetSyncEnabled: true } comp)
                 EntityManager.Dirty(comp.Owner, comp);
+
+            return true;
+        }
+
+        public string? DescribePropertyPath(object[] propertyIndex)
+        {
+            foreach (var trait in _traits)
+            {
+                if (trait.DescribePropertyPath(propertyIndex) is { } path)
+                    return path;
+            }
+
+            return null;
         }
 
         public bool TryGetRelativeObject(object[] propertyIndex, out object? value)
