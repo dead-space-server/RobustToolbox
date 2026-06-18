@@ -20,6 +20,8 @@ namespace Robust.Server.GameObjects
         [Dependency] private readonly IConfigurationManager _configurationManager = default!;
 
         private readonly List<Entity<PhysicsComponent, TransformComponent>> _safetySleepBuffer = new();
+        private readonly List<EntityUid> _staleSafetySleepBuffer = new();
+        private readonly Dictionary<EntityUid, float> _safetySleepTimes = new();
         private EntityQuery<ActorComponent> _actorQuery;
         private EntityQuery<MapGridComponent> _gridQuery;
         private EntityQuery<JointComponent> _jointQuery;
@@ -34,6 +36,9 @@ namespace Robust.Server.GameObjects
             _gridQuery = GetEntityQuery<MapGridComponent>();
             _jointQuery = GetEntityQuery<JointComponent>();
             _jointRelayQuery = GetEntityQuery<JointRelayTargetComponent>();
+
+            SubscribeLocalEvent<PhysicsComponent, PhysicsSleepEvent>(OnPhysicsSleepWake);
+            SubscribeLocalEvent<PhysicsComponent, PhysicsWakeEvent>(OnPhysicsSleepWake);
 
             Subs.CVar(_configurationManager, CVars.MetricsEnabled, _ => LoadMetricCVar());
         }
@@ -71,18 +76,23 @@ namespace Robust.Server.GameObjects
 
                 if (!CanSafetySleep(ent.Owner, body, ent.Comp2))
                 {
+                    _safetySleepTimes.Remove(ent.Owner);
                     continue;
                 }
 
-                var sleepReady = body.SleepTime >= TimeToSleep;
+                var sleepReady = body.SleepTime >= TimeToSleep ||
+                                 _safetySleepTimes.GetValueOrDefault(ent.Owner) >= TimeToSleep;
 
                 if (!sleepReady)
                 {
                     if (body.ContactCount != 0)
                         continue;
 
-                    SetSleepTime(body, body.SleepTime + frameTime);
-                    sleepReady = body.SleepTime >= TimeToSleep;
+                    var sleepTime = _safetySleepTimes.GetValueOrDefault(ent.Owner) + frameTime;
+                    sleepReady = sleepTime >= TimeToSleep;
+
+                    if (!sleepReady)
+                        _safetySleepTimes[ent.Owner] = sleepTime;
                 }
 
                 if (sleepReady)
@@ -90,6 +100,7 @@ namespace Robust.Server.GameObjects
             }
 
             _safetySleepBuffer.Clear();
+            PruneSafetySleepTimes();
         }
 
         private bool CanSafetySleep(EntityUid uid, PhysicsComponent body, TransformComponent xform)
@@ -138,6 +149,35 @@ namespace Robust.Server.GameObjects
 
             return _jointRelayQuery.TryGetComponent(uid, out var relay) &&
                    relay.Relayed.Count != 0;
+        }
+
+        private void PruneSafetySleepTimes()
+        {
+            if (_safetySleepTimes.Count <= AwakeBodies.Count + 128)
+                return;
+
+            foreach (var (uid, _) in _safetySleepTimes)
+            {
+                if (!PhysicsQuery.TryGetComponent(uid, out var body) || !body.Awake)
+                    _staleSafetySleepBuffer.Add(uid);
+            }
+
+            foreach (var uid in _staleSafetySleepBuffer)
+            {
+                _safetySleepTimes.Remove(uid);
+            }
+
+            _staleSafetySleepBuffer.Clear();
+        }
+
+        private void OnPhysicsSleepWake(EntityUid uid, PhysicsComponent component, ref PhysicsSleepEvent args)
+        {
+            _safetySleepTimes.Remove(uid);
+        }
+
+        private void OnPhysicsSleepWake(EntityUid uid, PhysicsComponent component, ref PhysicsWakeEvent args)
+        {
+            _safetySleepTimes.Remove(uid);
         }
 
     }
