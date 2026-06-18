@@ -6,9 +6,11 @@ using Robust.Shared.Configuration;
 using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
 using Robust.Shared.Map;
+using Robust.Shared.Map.Components;
 using Robust.Shared.Physics;
 using Robust.Shared.Physics.Components;
 using Robust.Shared.Physics.Systems;
+using Robust.Shared.Player;
 
 namespace Robust.Server.GameObjects
 {
@@ -18,8 +20,8 @@ namespace Robust.Server.GameObjects
         [Dependency] private readonly IConfigurationManager _configurationManager = default!;
 
         private readonly List<Entity<PhysicsComponent, TransformComponent>> _safetySleepBuffer = new();
-        private readonly List<EntityUid> _staleSafetySleepBuffer = new();
-        private readonly Dictionary<EntityUid, float> _safetySleepTimes = new();
+        private EntityQuery<ActorComponent> _actorQuery;
+        private EntityQuery<MapGridComponent> _gridQuery;
         private EntityQuery<JointComponent> _jointQuery;
         private EntityQuery<JointRelayTargetComponent> _jointRelayQuery;
 
@@ -28,11 +30,10 @@ namespace Robust.Server.GameObjects
             base.Initialize();
             LoadMetricCVar();
 
+            _actorQuery = GetEntityQuery<ActorComponent>();
+            _gridQuery = GetEntityQuery<MapGridComponent>();
             _jointQuery = GetEntityQuery<JointComponent>();
             _jointRelayQuery = GetEntityQuery<JointRelayTargetComponent>();
-
-            SubscribeLocalEvent<PhysicsComponent, PhysicsSleepEvent>(OnPhysicsSleepWake);
-            SubscribeLocalEvent<PhysicsComponent, PhysicsWakeEvent>(OnPhysicsSleepWake);
 
             Subs.CVar(_configurationManager, CVars.MetricsEnabled, _ => LoadMetricCVar());
         }
@@ -60,10 +61,7 @@ namespace Robust.Server.GameObjects
                 return;
 
             if (AwakeBodies.Count == 0)
-            {
-                _safetySleepTimes.Clear();
                 return;
-            }
 
             _safetySleepBuffer.AddRange(AwakeBodies);
 
@@ -73,34 +71,61 @@ namespace Robust.Server.GameObjects
 
                 if (!CanSafetySleep(ent.Owner, body, ent.Comp2))
                 {
-                    _safetySleepTimes.Remove(ent.Owner);
                     continue;
                 }
 
-                var sleepTime = _safetySleepTimes.GetValueOrDefault(ent.Owner) + frameTime;
+                var sleepReady = body.SleepTime >= TimeToSleep;
 
-                if (sleepTime >= TimeToSleep)
+                if (!sleepReady)
+                {
+                    if (body.ContactCount != 0)
+                        continue;
+
+                    SetSleepTime(body, body.SleepTime + frameTime);
+                    sleepReady = body.SleepTime >= TimeToSleep;
+                }
+
+                if (sleepReady)
                     SetAwake(ent, false);
-                else
-                    _safetySleepTimes[ent.Owner] = sleepTime;
             }
 
             _safetySleepBuffer.Clear();
-            PruneSafetySleepTimes();
         }
 
         private bool CanSafetySleep(EntityUid uid, PhysicsComponent body, TransformComponent xform)
         {
-            return body.Awake &&
-                   body.BodyType == BodyType.Dynamic &&
-                   body.BodyStatus == BodyStatus.OnGround &&
-                   body.CanCollide &&
-                   body.SleepingAllowed &&
-                   body.ContactCount == 0 &&
-                   xform.MapUid != null &&
-                   body.LinearVelocity.LengthSquared() <= LinearToleranceSqr &&
-                   body.AngularVelocity * body.AngularVelocity <= AngularToleranceSqr &&
-                   !HasJoints(uid);
+            if (!body.Awake ||
+                !body.CanCollide ||
+                !body.SleepingAllowed ||
+                xform.MapUid == null ||
+                _actorQuery.HasComponent(uid) ||
+                _gridQuery.HasComponent(uid) ||
+                HasJoints(uid))
+            {
+                return false;
+            }
+
+            if (body.BodyType != BodyType.Dynamic &&
+                body.BodyType != BodyType.KinematicController)
+            {
+                return false;
+            }
+
+            if (body.BodyType == BodyType.Dynamic &&
+                body.BodyStatus == BodyStatus.InAir &&
+                xform.GridUid != null)
+            {
+                return false;
+            }
+
+            if (body.LinearVelocity.LengthSquared() > LinearToleranceSqr ||
+                body.AngularVelocity * body.AngularVelocity > AngularToleranceSqr)
+            {
+                return false;
+            }
+
+            return body.ContactCount == 0 ||
+                   body.SleepTime >= TimeToSleep;
         }
 
         private bool HasJoints(EntityUid uid)
@@ -115,33 +140,5 @@ namespace Robust.Server.GameObjects
                    relay.Relayed.Count != 0;
         }
 
-        private void PruneSafetySleepTimes()
-        {
-            if (_safetySleepTimes.Count <= AwakeBodies.Count + 128)
-                return;
-
-            foreach (var (uid, _) in _safetySleepTimes)
-            {
-                if (!PhysicsQuery.TryGetComponent(uid, out var body) || !body.Awake)
-                    _staleSafetySleepBuffer.Add(uid);
-            }
-
-            foreach (var uid in _staleSafetySleepBuffer)
-            {
-                _safetySleepTimes.Remove(uid);
-            }
-
-            _staleSafetySleepBuffer.Clear();
-        }
-
-        private void OnPhysicsSleepWake(EntityUid uid, PhysicsComponent component, ref PhysicsSleepEvent args)
-        {
-            _safetySleepTimes.Remove(uid);
-        }
-
-        private void OnPhysicsSleepWake(EntityUid uid, PhysicsComponent component, ref PhysicsWakeEvent args)
-        {
-            _safetySleepTimes.Remove(uid);
-        }
     }
 }
