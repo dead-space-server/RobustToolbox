@@ -2,6 +2,7 @@ using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using Robust.Server.GameStates;
 using Robust.Shared;
 using Robust.Shared.Configuration;
 using Robust.Shared.GameObjects;
@@ -14,6 +15,73 @@ namespace Robust.UnitTesting.Server.GameStates;
 
 public sealed class PvsSystemTests : RobustIntegrationTest
 {
+    /// <summary>
+    /// Checks that overlapping global overrides still cache branches that were not traversed by an earlier child override.
+    /// </summary>
+    [Test]
+    public async Task TestOverlappingGlobalOverrides()
+    {
+        var server = StartServer();
+        var client = StartClient();
+
+        await Task.WhenAll(client.WaitIdleAsync(), server.WaitIdleAsync());
+
+        var sEntMan = server.ResolveDependency<IEntityManager>();
+        var confMan = server.ResolveDependency<IConfigurationManager>();
+        var sPlayerMan = server.ResolveDependency<ISharedPlayerManager>();
+        var pvsOverride = sEntMan.System<PvsOverrideSystem>();
+
+        var cEntMan = client.ResolveDependency<IEntityManager>();
+        var netMan = client.ResolveDependency<IClientNetManager>();
+
+        Assert.DoesNotThrow(() => client.SetConnectTarget(server));
+        client.Post(() => netMan.ClientConnect(null!, 0, null!));
+        server.Post(() => confMan.SetCVar(CVars.NetPVS, true));
+
+        for (var i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
+
+        EntityUid root = default;
+        EntityUid overriddenLeaf = default;
+        EntityUid sibling = default;
+        await server.WaitPost(() =>
+        {
+            var playerMap = server.System<SharedMapSystem>().CreateMap();
+            var overrideMap = server.System<SharedMapSystem>().CreateMap();
+
+            var player = sEntMan.SpawnEntity(null, new EntityCoordinates(playerMap, Vector2.Zero));
+            root = sEntMan.SpawnEntity(null, new EntityCoordinates(overrideMap, Vector2.Zero));
+            var branch = sEntMan.SpawnEntity(null, new EntityCoordinates(root, Vector2.Zero));
+            overriddenLeaf = sEntMan.SpawnEntity(null, new EntityCoordinates(branch, Vector2.Zero));
+            sibling = sEntMan.SpawnEntity(null, new EntityCoordinates(root, Vector2.One));
+
+            var session = sPlayerMan.Sessions.First();
+            server.PlayerMan.SetAttachedEntity(session, player);
+            sPlayerMan.JoinGame(session);
+
+            // Insert the descendant first. Its parent chain is cached, but the sibling branch is not traversed yet.
+            pvsOverride.AddGlobalOverride(overriddenLeaf);
+            pvsOverride.AddGlobalOverride(root);
+        });
+
+        for (var i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
+
+        Assert.That(cEntMan.TryGetEntity(sEntMan.GetNetEntity(root), out _));
+        Assert.That(cEntMan.TryGetEntity(sEntMan.GetNetEntity(overriddenLeaf), out _));
+        Assert.That(cEntMan.TryGetEntity(sEntMan.GetNetEntity(sibling), out _));
+
+        await client.WaitPost(() => netMan.ClientDisconnect(""));
+        await server.WaitRunTicks(5);
+        await client.WaitRunTicks(5);
+    }
+
     /// <summary>
     /// Checks that there are no issues when an entity changes PVS chunk location multiple times in a single tick.
     /// </summary>
