@@ -16,6 +16,7 @@ internal sealed partial class PvsSystem
 
     private readonly HashSet<EntityUid> _forceOverrideSet = new();
     private readonly HashSet<EntityUid> _globalOverrideSet = new();
+    private readonly HashSet<EntityUid> _globalOverrideExpandedSet = new();
 
     private void AddAllOverrides(PvsSession session)
     {
@@ -174,10 +175,11 @@ internal sealed partial class PvsSystem
 
         _cachedGlobalOverride.Clear();
         _globalOverrideSet.Clear();
+        _globalOverrideExpandedSet.Clear();
         foreach (var uid in _pvsOverride.GlobalOverride)
         {
             CacheOverrideParents(uid, _cachedGlobalOverride, _globalOverrideSet, out var xform);
-            CacheOverrideChildren(xform, _cachedGlobalOverride, _globalOverrideSet);
+            CacheOverrideChildren(uid, xform, _cachedGlobalOverride, _globalOverrideSet, _globalOverrideExpandedSet);
         }
     }
 
@@ -188,6 +190,10 @@ internal sealed partial class PvsSystem
         out TransformComponent xform)
     {
         xform = _xformQuery.GetComponent(uid);
+
+        // Parents are always cached before their children. If this entity is already present, its full parent chain is too.
+        if (set.Contains(uid))
+            return true;
 
         if (xform.ParentUid != EntityUid.Invalid && !CacheOverrideParents(xform.ParentUid, list, set, out _))
             return false;
@@ -206,8 +212,18 @@ internal sealed partial class PvsSystem
         return true;
     }
 
-    private void CacheOverrideChildren(TransformComponent xform, List<PvsChunk.ChunkEntity> list, HashSet<EntityUid> set)
+    private void CacheOverrideChildren(
+        EntityUid uid,
+        TransformComponent xform,
+        List<PvsChunk.ChunkEntity> list,
+        HashSet<EntityUid> set,
+        HashSet<EntityUid> expandedSet)
     {
+        // An entity being in set only means it was cached, possibly as the parent of another override.
+        // Keep track of fully traversed subtrees separately so overlapping global overrides do not repeatedly walk them.
+        if (!expandedSet.Add(uid))
+            return;
+
         foreach (var child in xform._children)
         {
             if (!_xformQuery.TryGetComponent(child, out var childXform))
@@ -219,7 +235,7 @@ internal sealed partial class PvsSystem
             if (set.Add(child))
                 list.Add(new(child, _metaQuery.GetComponent(child)));
 
-            CacheOverrideChildren(childXform, list, set);
+            CacheOverrideChildren(child, childXform, list, set, expandedSet);
         }
     }
 }
