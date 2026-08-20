@@ -743,6 +743,7 @@ public abstract partial class SharedPhysicsSystem
         if (count == 0)
             return;
 
+        using var _mz = _prof.Group("Generate Manifolds");
         _parallel.ProcessNow(new ManifoldsJob()
         {
             Physics = this,

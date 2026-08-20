@@ -15,16 +15,15 @@ using Robust.Shared.Utility;
 
 namespace Robust.Shared.Physics.Systems
 {
-    public abstract class SharedBroadphaseSystem : EntitySystem
+    public abstract partial class SharedBroadphaseSystem : EntitySystem
     {
-        [Dependency] private readonly IConfigurationManager _cfg = default!;
-        [Dependency] private readonly IMapManagerInternal _mapManager = default!;
-        [Dependency] private readonly IParallelManager _parallel = default!;
-        [Dependency] private readonly EntityLookupSystem _lookup = default!;
-        [Dependency] private readonly SharedGridTraversalSystem _traversal = default!;
-        [Dependency] private readonly SharedMapSystem _map = default!;
-        [Dependency] private readonly SharedPhysicsSystem _physicsSystem = default!;
-        [Dependency] private readonly SharedTransformSystem _transform = default!;
+        [Dependency] private IConfigurationManager _cfg = default!;
+        [Dependency] private IParallelManager _parallel = default!;
+        [Dependency] private EntityLookupSystem _lookup = default!;
+        [Dependency] private SharedGridTraversalSystem _traversal = default!;
+        [Dependency] private SharedMapSystem _map = default!;
+        [Dependency] private SharedPhysicsSystem _physicsSystem = default!;
+        [Dependency] private SharedTransformSystem _transform = default!;
 
         private EntityQuery<BroadphaseComponent> _broadphaseQuery;
         private EntityQuery<FixturesComponent> _fixturesQuery;
@@ -33,6 +32,7 @@ namespace Robust.Shared.Physics.Systems
         private EntityQuery<TransformComponent> _xformQuery;
 
         private readonly HashSet<FixtureProxy> _gridMoveBuffer = new();
+        private readonly HashSet<EntityUid> _gridSundriesMoveBuffer = new();
 
         private float _frameTime;
 
@@ -51,9 +51,9 @@ namespace Robust.Shared.Physics.Systems
 
             _contactJob = new()
             {
-                MapManager = _mapManager,
                 System = this,
                 TransformSys = EntityManager.System<SharedTransformSystem>(),
+                MapSys = _map,
                 // TODO: EntityManager one isn't ready yet?
                 XformQuery = GetEntityQuery<TransformComponent>(),
             };
@@ -106,6 +106,7 @@ namespace Robust.Shared.Physics.Systems
             // we move over is getting checked for collisions, and putting it on the movebuffer is the easiest way to do so.
             var moveBuffer = _physicsSystem.MoveBuffer;
             _gridMoveBuffer.Clear();
+            _gridSundriesMoveBuffer.Clear();
 
             foreach (var gridUid in movedGrids)
             {
@@ -122,6 +123,10 @@ namespace Robust.Shared.Physics.Systems
 
                 QueryMapBroadphase(mapBroadphase.DynamicTree, ref state, enlargedAABB);
                 QueryMapBroadphase(mapBroadphase.StaticTree, ref state, enlargedAABB);
+
+                var sundriesState = _gridSundriesMoveBuffer;
+                QueryMapSundries(mapBroadphase.SundriesTree, ref sundriesState, enlargedAABB);
+                QueryMapSundries(mapBroadphase.StaticSundriesTree, ref sundriesState, enlargedAABB);
             }
 
             foreach (var proxy in _gridMoveBuffer)
@@ -129,6 +134,11 @@ namespace Robust.Shared.Physics.Systems
                 moveBuffer.Add(proxy);
                 // If something is in our AABB then try grid traversal for it
                 _traversal.CheckTraverse((proxy.Entity, _xformQuery.GetComponent(proxy.Entity)));
+            }
+
+            foreach (var uid in _gridSundriesMoveBuffer)
+            {
+                _traversal.CheckTraverse((uid, _xformQuery.GetComponent(uid)));
             }
         }
 
@@ -156,6 +166,15 @@ namespace Robust.Shared.Physics.Systems
                 // To avoid updating during iteration.
                 // Don't need to transform as it's already in map terms.
                 tuple.gridMoveBuffer.Add(value);
+                return true;
+            }, enlargedAABB, true);
+        }
+
+        private void QueryMapSundries(DynamicTree<EntityUid> sundriesTree, ref HashSet<EntityUid> state, Box2 enlargedAABB)
+        {
+            sundriesTree.QueryAabb(ref state, static (ref HashSet<EntityUid> moveBuffer, in EntityUid value) =>
+            {
+                moveBuffer.Add(value);
                 return true;
             }, enlargedAABB, true);
         }
@@ -272,7 +291,7 @@ namespace Robust.Shared.Physics.Systems
                     _physicsQuery,
                     _xformQuery);
 
-                _mapManager.FindGridsIntersecting(xform.MapID, aabb, ref state,
+                _map.FindGridsIntersecting(xform.MapID, aabb, ref state,
                     static (EntityUid gridBUid, MapGridComponent gridBMapComp,
                         ref (Entity<FixturesComponent, MapGridComponent, PhysicsComponent, TransformComponent> gridA,
                             Transform gridAToWorldRigid,
@@ -548,7 +567,7 @@ namespace Robust.Shared.Physics.Systems
             if (_broadphaseQuery.TryGetComponent(map.Value, out var mapBroadphase))
                 callback((map.Value, mapBroadphase));
 
-            _mapManager.FindGridsIntersecting(map.Value,
+            _map.FindGridsIntersecting(map.Value,
                 aabb,
                 ref internalState,
                 static (
@@ -576,7 +595,7 @@ namespace Robust.Shared.Physics.Systems
             if (_broadphaseQuery.TryGetComponent(map.Value, out var mapBroadphase))
                 callback((map.Value, mapBroadphase), ref state);
 
-            _mapManager.FindGridsIntersecting(map.Value,
+            _map.FindGridsIntersecting(map.Value,
                 aabb,
                 ref internalState,
                 static (
@@ -603,7 +622,7 @@ namespace Robust.Shared.Physics.Systems
         {
             public SharedBroadphaseSystem System = default!;
             public SharedTransformSystem TransformSys = default!;
-            public IMapManager MapManager = default!;
+            public SharedMapSystem MapSys = default!;
 
             public EntityQuery<TransformComponent> XformQuery;
 
@@ -633,7 +652,7 @@ namespace Robust.Shared.Physics.Systems
                 var state = (System, proxy, worldAABB, Pairs);
 
                 // Get every broadphase we may be intersecting.
-                MapManager.FindGridsIntersecting(mapUid, worldAABB.Enlarged(broadphaseExpand), ref state,
+                MapSys.FindGridsIntersecting(mapUid, worldAABB.Enlarged(broadphaseExpand), ref state,
                     static (EntityUid uid, MapGridComponent _, ref (
                         SharedBroadphaseSystem system,
                         FixtureProxy proxy,
