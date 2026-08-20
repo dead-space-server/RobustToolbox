@@ -15,9 +15,9 @@ using Robust.Shared.Player;
 namespace Robust.Server.GameObjects
 {
     [UsedImplicitly]
-    public sealed class PhysicsSystem : SharedPhysicsSystem
+    public sealed partial class PhysicsSystem : SharedPhysicsSystem
     {
-        [Dependency] private readonly IConfigurationManager _configurationManager = default!;
+        [Dependency] private IConfigurationManager _configurationManager = default!;
 
         private readonly List<Entity<PhysicsComponent, TransformComponent>> _safetySleepBuffer = new();
         private readonly List<EntityUid> _staleSafetySleepBuffer = new();

@@ -6,9 +6,11 @@ using Robust.Shared.GameObjects;
 using Robust.Shared.GameStates;
 using Robust.Shared.Map;
 using Robust.Shared.Map.Components;
+using Robust.Shared.Maths;
 using Robust.Shared.Physics.Collision;
 using Robust.Shared.Physics.Components;
 using Robust.Shared.Physics.Events;
+using Robust.Shared.Profiling;
 using Robust.Shared.Threading;
 using Robust.Shared.Timing;
 using Robust.Shared.Utility;
@@ -66,16 +68,17 @@ namespace Robust.Shared.Physics.Systems
             "robust_physics_new_contact_pairs",
             "Number of new contact pairs found by physics broadphase during the latest tick.");
 
-        [Dependency] private readonly IConfigurationManager _cfg = default!;
-        [Dependency] private readonly IManifoldManager _manifoldManager = default!;
-        [Dependency] private readonly IParallelManager _parallel = default!;
-        [Dependency] private readonly EntityLookupSystem _lookup = default!;
-        [Dependency] private readonly SharedBroadphaseSystem _broadphase = default!;
-        [Dependency] private readonly SharedContainerSystem _containerSystem = default!;
-        [Dependency] private readonly SharedDebugPhysicsSystem _debugPhysics = default!;
-        [Dependency] private readonly SharedJointSystem _joints = default!;
-        [Dependency] private readonly SharedTransformSystem _transform = default!;
-        [Dependency] private readonly CollisionWakeSystem _wakeSystem = default!;
+        [Dependency] private IConfigurationManager _cfg = default!;
+        [Dependency] private IManifoldManager _manifoldManager = default!;
+        [Dependency] private IParallelManager _parallel = default!;
+        [Dependency] private EntityLookupSystem _lookup = default!;
+        [Dependency] private SharedBroadphaseSystem _broadphase = default!;
+        [Dependency] private SharedContainerSystem _containerSystem = default!;
+        [Dependency] private SharedDebugPhysicsSystem _debugPhysics = default!;
+        [Dependency] private SharedJointSystem _joints = default!;
+        [Dependency] private SharedTransformSystem _transform = default!;
+        [Dependency] private ProfManager _prof = default!;
+        [Dependency] private CollisionWakeSystem _wakeSystem = default!;
 
         private int _substeps;
 
@@ -306,7 +309,10 @@ namespace Robust.Shared.Physics.Systems
                 if (MetricsEnabled)
                     _metricsStopwatch.Restart();
 
-                RaiseLocalEvent(ref updateBeforeSolve);
+                using (_prof.Group("PreSolve", Color.Green))
+                {
+                    RaiseLocalEvent(ref updateBeforeSolve);
+                }
 
                 if (MetricsEnabled)
                     _beforeSolveMonitor.Observe(_metricsStopwatch.Elapsed.TotalSeconds);
@@ -318,7 +324,10 @@ namespace Robust.Shared.Physics.Systems
                 if (MetricsEnabled)
                     _metricsStopwatch.Restart();
 
-                _broadphase.FindNewContacts();
+                using (_prof.Group("Broadphase", Color.Cyan))
+                {
+                    _broadphase.FindNewContacts();
+                }
 
                 if (MetricsEnabled)
                     _broadphaseMonitor.Observe(_metricsStopwatch.Elapsed.TotalSeconds);
@@ -348,7 +357,10 @@ namespace Robust.Shared.Physics.Systems
                 if (MetricsEnabled)
                     _metricsStopwatch.Restart();
 
-                CollideContacts();
+                using (_prof.Group("Collide", Color.Orange))
+                {
+                    CollideContacts();
+                }
 
                 if (MetricsEnabled)
                     _collideMonitor.Observe(_metricsStopwatch.Elapsed.TotalSeconds);
@@ -356,7 +368,10 @@ namespace Robust.Shared.Physics.Systems
                 if (MetricsEnabled)
                     _metricsStopwatch.Restart();
 
-                Step(frameTime, prediction);
+                using (_prof.Group("Solve", Color.Red))
+                {
+                    Step(frameTime, prediction);
+                }
 
                 if (MetricsEnabled)
                     _stepMonitor.Observe(_metricsStopwatch.Elapsed.TotalSeconds);
@@ -365,7 +380,10 @@ namespace Robust.Shared.Physics.Systems
                 if (MetricsEnabled)
                     _metricsStopwatch.Restart();
 
-                RaiseLocalEvent(ref updateAfterSolve);
+                using (_prof.Group("PostSolve", Color.Yellow))
+                {
+                    RaiseLocalEvent(ref updateAfterSolve);
+                }
 
                 if (MetricsEnabled)
                     _afterSolveMonitor.Observe(_metricsStopwatch.Elapsed.TotalSeconds);

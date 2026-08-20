@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Prometheus;
 using Robust.Shared.GameObjects;
@@ -15,7 +14,7 @@ namespace Robust.Server.GameStates;
 
 internal sealed partial class PvsSystem
 {
-    [Dependency] private readonly IRobustSerializer _serializer = default!;
+    [Dependency] private IRobustSerializer _serializer = default!;
 
     /// <summary>
     /// Get and serialize <see cref="GameState"/> objects for each player. Compressing & sending the states is done later.
@@ -86,27 +85,7 @@ internal sealed partial class PvsSystem
                 data.StateStream = null;
             }
 
-            ReleasePooledStateData(data);
-            data.ClearState();
-        }
-    }
-
-    private void ReleasePooledStateData(PvsSession data)
-    {
-        var states = data.States;
-        for (var i = 0; i < states.Count; i++)
-        {
-            var state = states[i];
-            var changes = state.ComponentChanges.Value;
-
-            if (changes is List<ComponentChange> list)
-                _componentChangeListPool.Return(list);
-
-            if (state.NetComponents == null)
-                continue;
-
-            _netComponentSetPool.Return(state.NetComponents);
-            state.NetComponents = null;
+            ClearSessionState(data);
         }
     }
 }
