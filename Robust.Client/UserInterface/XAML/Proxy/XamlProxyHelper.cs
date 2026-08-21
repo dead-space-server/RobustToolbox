@@ -3,7 +3,7 @@ using Robust.Shared.IoC;
 
 namespace Robust.Client.UserInterface.XAML.Proxy;
 
-internal sealed partial class XamlProxyHelper : IXamlProxyHelper
+internal sealed class XamlProxyHelper: IXamlProxyHelper
 {
     [Dependency] private IXamlProxyManager _xamlProxyManager = default!;
 

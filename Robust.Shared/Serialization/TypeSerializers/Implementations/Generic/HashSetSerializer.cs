@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Robust.Shared.IoC;
+using Robust.Shared.Log;
 using Robust.Shared.Serialization.Manager;
 using Robust.Shared.Serialization.Manager.Attributes;
 using Robust.Shared.Serialization.Markdown;
@@ -14,7 +15,6 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations.Generic
 {
     [TypeSerializer]
     public sealed class HashSetSerializer<T> :
-        BaseTypeSerializer,
         ITypeSerializer<HashSet<T>, SequenceDataNode>,
         ITypeSerializer<FrozenSet<T>, SequenceDataNode>,
         ITypeSerializer<ImmutableHashSet<T>, SequenceDataNode>,
@@ -31,7 +31,7 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations.Generic
             ISerializationContext? context,
             ISerializationManager.InstantiationDelegate<HashSet<T>>? instanceProvider)
         {
-            var set = instanceProvider != null ? instanceProvider() : new HashSet<T>(node.Sequence.Count);
+            var set = instanceProvider != null ? instanceProvider() : new HashSet<T>();
 
             foreach (var dataNode in node.Sequence)
             {
@@ -46,7 +46,8 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations.Generic
         {
             if (instanceProvider != null)
             {
-                Log.Warning($"Provided value to a Read-call for a {nameof(FrozenSet<T>)}. Ignoring...");
+                var sawmill = dependencies.Resolve<ILogManager>().GetSawmill("szr");
+                sawmill.Warning($"Provided value to a Read-call for a {nameof(FrozenSet<T>)}. Ignoring...");
             }
 
             var array = new T[node.Sequence.Count];
@@ -68,7 +69,8 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations.Generic
         {
             if (instanceProvider != null)
             {
-                Log.Warning($"Provided value to a Read-call for a {nameof(ImmutableHashSet<T>)}. Ignoring...");
+                var sawmill = dependencies.Resolve<ILogManager>().GetSawmill("szr");
+                sawmill.Warning($"Provided value to a Read-call for a {nameof(ImmutableHashSet<T>)}. Ignoring...");
             }
             var set = ImmutableHashSet.CreateBuilder<T>();
 
@@ -124,30 +126,20 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations.Generic
             bool alwaysWrite = false,
             ISerializationContext? context = null)
         {
-            return WriteInternal(serializationManager, value, value.Count, alwaysWrite, context);
+            return Write(serializationManager, value.ToHashSet(), dependencies, alwaysWrite, context);
         }
 
         public DataNode Write(ISerializationManager serializationManager, FrozenSet<T> value, IDependencyCollection dependencies,
             bool alwaysWrite = false, ISerializationContext? context = null)
         {
-            return WriteInternal(serializationManager, value, value.Count, alwaysWrite, context);
+            return Write(serializationManager, value.ToHashSet(), dependencies, alwaysWrite, context);
         }
 
         public DataNode Write(ISerializationManager serializationManager, HashSet<T> value,
             IDependencyCollection dependencies, bool alwaysWrite = false,
             ISerializationContext? context = null)
         {
-            return WriteInternal(serializationManager, value, value.Count, alwaysWrite, context);
-        }
-
-        private static DataNode WriteInternal(
-            ISerializationManager serializationManager,
-            IEnumerable<T> value,
-            int count,
-            bool alwaysWrite = false,
-            ISerializationContext? context = null)
-        {
-            var sequence = new SequenceDataNode(count);
+            var sequence = new SequenceDataNode();
 
             foreach (var elem in value)
             {

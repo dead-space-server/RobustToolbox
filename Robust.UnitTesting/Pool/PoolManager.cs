@@ -180,7 +180,7 @@ public class PoolManager<TPair> : BasePoolManager where TPair : class, ITestPair
             if (pair != null)
             {
                 pair.ActivateContext(testOut);
-                await testOut.WriteLineAsync($"{nameof(GetPair)}: Suitable pair found (Pair {pair.Id})");
+                await testOut.WriteLineAsync($"{nameof(GetPair)}: Suitable pair found");
 
                 if (pair.Settings.CanFastRecycle(settings))
                 {

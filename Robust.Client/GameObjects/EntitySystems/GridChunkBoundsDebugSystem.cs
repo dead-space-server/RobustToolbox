@@ -4,6 +4,7 @@ using Robust.Client.Graphics;
 using Robust.Shared.Enums;
 using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
+using Robust.Shared.Map;
 using Robust.Shared.Map.Components;
 using Robust.Shared.Maths;
 using Robust.Shared.Physics;
@@ -12,11 +13,13 @@ using Robust.Shared.Utility;
 
 namespace Robust.Client.GameObjects
 {
-    public sealed partial class GridChunkBoundsDebugSystem : EntitySystem
+    public sealed class GridChunkBoundsDebugSystem : EntitySystem
     {
-        [Dependency] private IOverlayManager _overlayManager = default!;
-        [Dependency] private TransformSystem _transform = default!;
-        [Dependency] private SharedMapSystem _map = default!;
+        [Dependency] private readonly IEyeManager _eyeManager = default!;
+        [Dependency] private readonly IMapManager _mapManager = default!;
+        [Dependency] private readonly IOverlayManager _overlayManager = default!;
+        [Dependency] private readonly TransformSystem _transform = default!;
+        [Dependency] private readonly SharedMapSystem _map = default!;
 
         private GridChunkBoundsOverlay? _overlay;
 
@@ -34,6 +37,8 @@ namespace Robust.Client.GameObjects
                     DebugTools.Assert(_overlay == null);
                     _overlay = new GridChunkBoundsOverlay(
                         EntityManager,
+                        _eyeManager,
+                        _mapManager,
                         _transform,
                         _map);
 
@@ -53,6 +58,8 @@ namespace Robust.Client.GameObjects
     internal sealed class GridChunkBoundsOverlay : Overlay
     {
         private readonly IEntityManager _entityManager;
+        private readonly IEyeManager _eyeManager;
+        private readonly IMapManager _mapManager;
         private readonly SharedTransformSystem _transformSystem;
         private readonly SharedMapSystem _mapSystem;
 
@@ -60,9 +67,11 @@ namespace Robust.Client.GameObjects
 
         private List<Entity<MapGridComponent>> _grids = new();
 
-        public GridChunkBoundsOverlay(IEntityManager entManager, SharedTransformSystem transformSystem, SharedMapSystem mapSystem)
+        public GridChunkBoundsOverlay(IEntityManager entManager, IEyeManager eyeManager, IMapManager mapManager, SharedTransformSystem transformSystem, SharedMapSystem mapSystem)
         {
             _entityManager = entManager;
+            _eyeManager = eyeManager;
+            _mapManager = mapManager;
             _transformSystem = transformSystem;
             _mapSystem = mapSystem;
         }
@@ -75,7 +84,7 @@ namespace Robust.Client.GameObjects
 
             var fixturesQuery = _entityManager.GetEntityQuery<FixturesComponent>();
             _grids.Clear();
-            _mapSystem.FindGridsIntersecting(currentMap, viewport, ref _grids);
+            _mapManager.FindGridsIntersecting(currentMap, viewport, ref _grids);
             foreach (var grid in _grids)
             {
                 var worldMatrix = _transformSystem.GetWorldMatrix(grid);

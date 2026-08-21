@@ -9,7 +9,6 @@ namespace Robust.Client.UserInterface.Controls
 {
     public abstract class ScrollBar : Range
     {
-        public const string StylePropertyTrack = "track";
         public const string StylePropertyGrabber = "grabber";
         public const string StylePseudoClassHover = "hover";
         public const string StylePseudoClassGrabbed = "grabbed";
@@ -81,9 +80,6 @@ namespace Robust.Client.UserInterface.Controls
 
         protected internal override void Draw(DrawingHandleScreen handle)
         {
-            var trackStyle = _getTrackStyleBox();
-            trackStyle?.Draw(handle, PixelSizeBox, UIScale);
-
             var styleBox = _getGrabberStyleBox();
             styleBox?.Draw(handle, _getGrabberBox(), UIScale);
         }
@@ -195,12 +191,6 @@ namespace Robust.Client.UserInterface.Controls
             }
 
             return null;
-        }
-
-        [System.Diagnostics.Contracts.Pure]
-        private StyleBox? _getTrackStyleBox()
-        {
-            return StylePropertyDefault<StyleBox?>(StylePropertyTrack, null);
         }
 
         [System.Diagnostics.Contracts.Pure]

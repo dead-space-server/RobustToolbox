@@ -155,6 +155,7 @@ internal sealed class PhysicsTestBedTest : RobustIntegrationTest
         await server.WaitIdleAsync();
 
         var entityManager = server.ResolveDependency<IEntityManager>();
+        var mapManager = server.ResolveDependency<IMapManager>();
         var entitySystemManager = server.ResolveDependency<IEntitySystemManager>();
         var fixtureSystem = entitySystemManager.GetEntitySystem<FixtureSystem>();
         var physSystem = entitySystemManager.GetEntitySystem<SharedPhysicsSystem>();

@@ -7,6 +7,7 @@ using Robust.Client.GameStates;
 using Robust.Shared;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Map;
+using Robust.Shared.Network;
 
 namespace Robust.UnitTesting.Server.GameStates;
 
@@ -18,8 +19,10 @@ public sealed class PvsPauseTest : RobustIntegrationTest
     [Test]
     public async Task PauseTest()
     {
-        await using var pair = await StartConnectedPair();
-        var (client, server) = pair;
+        var server = StartServer();
+        var client = StartClient();
+
+        await Task.WhenAll(client.WaitIdleAsync(), server.WaitIdleAsync());
 
         var sEntMan = server.EntMan;
         var confMan = server.CfgMan;
@@ -30,12 +33,19 @@ public sealed class PvsPauseTest : RobustIntegrationTest
 
         var cEntMan = client.EntMan;
         var cPlayerMan = client.PlayerMan;
+        var netMan = client.ResolveDependency<IClientNetManager>();
 
+        Assert.DoesNotThrow(() => client.SetConnectTarget(server));
+        client.Post(() => netMan.ClientConnect(null!, 0, null!));
         server.Post(() => confMan.SetCVar(CVars.NetPVS, true));
 
         async Task RunTicks()
         {
-            await RunTicksSync(server, client, 10);
+            for (int i = 0; i < 10; i++)
+            {
+                await server.WaitRunTicks(1);
+                await client.WaitRunTicks(1);
+            }
         }
 
         await RunTicks();
@@ -156,6 +166,8 @@ public sealed class PvsPauseTest : RobustIntegrationTest
             AssertEnt(paused: true, detached: false, clientPaused: true);
         }
 
+        client.Post(() => netMan.ClientDisconnect(""));
+        await RunTicks();
     }
 }
 

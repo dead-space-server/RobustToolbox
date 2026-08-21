@@ -24,7 +24,7 @@ namespace Robust.UnitTesting.Shared.Serialization.YamlObjectSerializerTests
         [Test]
         public void SerializeTypePropertiesTest()
         {
-            ITestType? type = new TestType2
+            ITestType? type = new TestTypeTwo
             {
                 TestPropertyOne = "B",
                 TestPropertyTwo = 10
@@ -48,7 +48,7 @@ namespace Robust.UnitTesting.Shared.Serialization.YamlObjectSerializerTests
         {
             var yaml = @"
 - test:
-    !type:TestType2
+    !type:testtype2
     testPropertyOne: A
     testPropertyTwo: 5
 ";
@@ -70,17 +70,18 @@ namespace Robust.UnitTesting.Shared.Serialization.YamlObjectSerializerTests
             var type = serMan.Read<ITestType>(mapping["test"].ToDataNode(), notNullableOverride: true);
 
             Assert.That(type, Is.Not.Null);
-            Assert.That(type, Is.InstanceOf<TestType2>());
+            Assert.That(type, Is.InstanceOf<TestTypeTwo>());
 
-            var testTypeTwo = (TestType2) type!;
+            var testTypeTwo = (TestTypeTwo) type!;
 
             Assert.That(testTypeTwo.TestPropertyOne, Is.EqualTo("A"));
             Assert.That(testTypeTwo.TestPropertyTwo, Is.EqualTo(5));
         }
     }
 
+    [SerializedType("testtype2")]
     [DataDefinition]
-    public sealed partial class TestType2 : ITestType
+    public sealed partial class TestTypeTwo : ITestType
     {
         [DataField("testPropertyOne")]
         public string? TestPropertyOne { get; set; }

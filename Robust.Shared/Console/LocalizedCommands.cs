@@ -13,9 +13,9 @@ namespace Robust.Shared.Console;
 /// <remarks>
 ///     For server commands, it is much preferred to use <see cref="ToolshedCommand"/>.
 /// </remarks>
-public abstract partial class LocalizedCommands : IConsoleCommand
+public abstract class LocalizedCommands : IConsoleCommand
 {
-    [Dependency] protected ILocalizationManager LocalizationManager = default!;
+    [Dependency] protected readonly ILocalizationManager LocalizationManager = default!;
 
     public ILocalizationManager Loc => LocalizationManager;
 
@@ -57,8 +57,8 @@ public abstract partial class LocalizedCommands : IConsoleCommand
 /// These commands are allowed to take dependencies on entity systems, reducing boilerplate for many usages.
 /// </para>
 /// </remarks>
-public abstract partial class LocalizedEntityCommands : LocalizedCommands, IEntityConsoleCommand
+public abstract class LocalizedEntityCommands : LocalizedCommands, IEntityConsoleCommand
 {
     [Dependency]
-    protected EntityManager EntityManager = default!;
+    protected readonly EntityManager EntityManager = default!;
 }

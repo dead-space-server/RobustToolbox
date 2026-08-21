@@ -34,9 +34,7 @@ public static class Matrix3Helpers
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Box2 TransformBox(this Matrix3x2 refFromBox, in Box2Rotated box)
     {
-        refFromBox.TransformBox(box, out var x, out var y);
-        var aabb = SimdHelpers.GetAABB(x, y);
-        return Unsafe.As<Vector128<float>, Box2>(ref aabb);
+        return (box.Transform * refFromBox).TransformBox(box.Box);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -46,14 +44,7 @@ public static class Matrix3Helpers
         out Vector128<float> x,
         out Vector128<float> y)
     {
-        box.GetVertices(out var boxX, out var boxY);
-
-        x = Vector128.Create(refFromBox.M31)
-            + boxX * Vector128.Create(refFromBox.M11)
-            + boxY * Vector128.Create(refFromBox.M21);
-        y = Vector128.Create(refFromBox.M32)
-            + boxX * Vector128.Create(refFromBox.M12)
-            + boxY * Vector128.Create(refFromBox.M22);
+        (box.Transform * refFromBox).TransformBox(box.Box, out x, out y);
     }
 
     public static Box2 TransformBox(this Matrix3x2 refFromBox, in Box2 box)

@@ -9,14 +9,13 @@ namespace Robust.Shared.GameObjects;
 /// <summary>
 /// Responsible for applying relevant changes to active entities when prototypes are reloaded.
 /// </summary>
-internal sealed partial class PrototypeReloadSystem : EntitySystem
+internal sealed class PrototypeReloadSystem : EntitySystem
 {
-    [Dependency] private MetaDataSystem _meta = default!;
+    [Dependency] private readonly IPrototypeManager _prototypes = default!;
+    [Dependency] private readonly IComponentFactory _componentFactory = default!;
 
     public override void Initialize()
     {
-        base.Initialize();
-
         SubscribeLocalEvent<PrototypesReloadedEventArgs>(OnPrototypesReloaded);
     }
 
@@ -32,7 +31,7 @@ internal sealed partial class PrototypeReloadSystem : EntitySystem
             if (id == null || !set.Modified.ContainsKey(id))
                 continue;
 
-            var proto = ProtoMan.Index<EntityPrototype>(id);
+            var proto = _prototypes.Index<EntityPrototype>(id);
             UpdateEntity(uid, metadata, proto);
         }
     }
@@ -43,12 +42,12 @@ internal sealed partial class PrototypeReloadSystem : EntitySystem
 
         var oldPrototypeComponents = oldPrototype?.Components.Keys
             .Where(n => n != "Transform" && n != "MetaData")
-            .Select(name => (name, Factory.GetRegistration(name).Type))
+            .Select(name => (name, _componentFactory.GetRegistration(name).Type))
             .ToList() ?? new List<(string name, Type Type)>();
 
         var newPrototypeComponents = newPrototype.Components.Keys
             .Where(n => n != "Transform" && n != "MetaData")
-            .Select(name => (name, Factory.GetRegistration(name).Type))
+            .Select(name => (name, _componentFactory.GetRegistration(name).Type))
             .ToList();
 
         var ignoredComponents = new List<string>();
@@ -72,13 +71,13 @@ internal sealed partial class PrototypeReloadSystem : EntitySystem
                      .Except(oldPrototypeComponents))
         {
             var data = newPrototype.Components[name];
-            var component = Factory.GetComponent(name);
+            var component = _componentFactory.GetComponent(name);
 
             if (!HasComp(entity, component.GetType()))
                 AddComp(entity, component);
         }
 
         // Update entity metadata
-        _meta.SetEntityPrototype(entity, newPrototype, metaData);
+        metaData.EntityPrototype = newPrototype;
     }
 }

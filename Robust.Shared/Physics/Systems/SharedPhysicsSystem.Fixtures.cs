@@ -10,7 +10,7 @@ namespace Robust.Shared.Physics.Systems;
 
 public abstract partial class SharedPhysicsSystem
 {
-    [Dependency] private FixtureSystem _fixtures = default!;
+    [Dependency] private readonly FixtureSystem _fixtures = default!;
 
     public void SetDensity(EntityUid uid, string fixtureId, Fixture fixture, float value, bool update = true, FixturesComponent? manager = null)
     {
@@ -149,7 +149,7 @@ public abstract partial class SharedPhysicsSystem
             return false;
         }
 
-        // Check the collision filter on the rigid bodies
+        // Fast check
         if (!bodyA.Comp2.Hard ||
             !bodyB.Comp2.Hard ||
             ((bodyA.Comp2.CollisionLayer & bodyB.Comp2.CollisionMask) == 0x0 &&
@@ -158,18 +158,28 @@ public abstract partial class SharedPhysicsSystem
             return false;
         }
 
-        // Check the collision filter on the fixtures
-        return IsHardCollidable(bodyA.Comp1, bodyB.Comp1);
-    }
+        // Slow check
+        foreach (var fix in bodyA.Comp1.Fixtures.Values)
+        {
+            if (!fix.Hard)
+                continue;
 
-    /// <summary>
-    /// Returns true if collision filter on any fixture pair are hard-collidable with each other
-    /// </summary>
-    public bool IsHardCollidable(FixturesComponent fixturesA, FixturesComponent fixturesB)
-    {
-        var (aLayer, aMask) = GetHardCollision(fixturesA);
-        var (bLayer, bMask) = GetHardCollision(fixturesB);
-        return ((aLayer & bMask) | (bLayer & aMask)) != 0;
+            foreach (var other in bodyB.Comp1.Fixtures.Values)
+            {
+                if (!other.Hard)
+                    continue;
+
+                if ((fix.CollisionLayer & other.CollisionMask) == 0x0 &&
+                    (fix.CollisionMask & other.CollisionLayer) == 0x0)
+                {
+                    continue;
+                }
+
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public void AddCollisionMask(EntityUid uid, string fixtureId, Fixture fixture, int mask, FixturesComponent? manager = null, PhysicsComponent? body = null)

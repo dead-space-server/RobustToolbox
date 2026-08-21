@@ -52,18 +52,19 @@ namespace Robust.Client.Graphics.Clyde
         private void _drawGrids(Viewport viewport, Box2 worldAABB, Box2Rotated worldBounds, IEye eye)
         {
             var mapId = eye.Position.MapId;
-            if (!_mapSystem.MapExists(mapId))
+            if (!_mapManager.MapExists(mapId))
             {
                 // fall back to nullspace map
                 mapId = MapId.Nullspace;
             }
 
             _grids.Clear();
-            _mapSystem.FindGridsIntersecting(mapId, worldBounds, ref _grids);
+            _mapManager.FindGridsIntersecting(mapId, worldBounds, ref _grids);
 
             var requiresFlush = true;
             GLShaderProgram gridProgram = default!;
             var gridOverlays = GetOverlaysForSpace(OverlaySpace.WorldSpaceGrids);
+            var mapSystem = _entityManager.System<SharedMapSystem>();
 
             foreach (var mapGrid in _grids)
             {
@@ -84,16 +85,8 @@ namespace Robust.Client.Graphics.Clyde
                     gridProgram.SetUniform(UniIModUV, new Vector4(0, 0, 1, 1));
                 }
 
-                var matrix = _transformSystem.GetWorldMatrix(mapGrid);
-                matrix.Translation += GetPixelSnapOffset(
-                    matrix.Translation,
-                    eye.Position.Position + eye.Offset,
-                    eye.Rotation,
-                    eye.Scale * viewport.RenderScale *
-                        new Vector2(EyeManager.PixelsPerMeter, -EyeManager.PixelsPerMeter),
-                    viewport.Size);
-                gridProgram.SetUniform(UniIModelMatrix, matrix);
-                var enumerator = _mapSystem.GetMapChunks(mapGrid.Owner, mapGrid.Comp, worldBounds);
+                gridProgram.SetUniform(UniIModelMatrix, _transformSystem.GetWorldMatrix(mapGrid));
+                var enumerator = mapSystem.GetMapChunks(mapGrid.Owner, mapGrid.Comp, worldBounds);
 
                 // Handle base texture updates.
                 while (enumerator.MoveNext(out var chunk))
@@ -130,7 +123,7 @@ namespace Robust.Client.Graphics.Clyde
                 // Handle edge sprites.
                 if (_drawTileEdges)
                 {
-                    enumerator = _mapSystem.GetMapChunks(mapGrid.Owner, mapGrid.Comp, worldBounds);
+                    enumerator = mapSystem.GetMapChunks(mapGrid.Owner, mapGrid.Comp, worldBounds);
                     while (enumerator.MoveNext(out var chunk))
                     {
                         var datum = data[chunk.Indices];
@@ -139,7 +132,7 @@ namespace Robust.Client.Graphics.Clyde
                     }
                 }
 
-                enumerator = _mapSystem.GetMapChunks(mapGrid.Owner, mapGrid.Comp, worldBounds);
+                enumerator = mapSystem.GetMapChunks(mapGrid.Owner, mapGrid.Comp, worldBounds);
 
                 // Draw chunks
                 while (enumerator.MoveNext(out var chunk))
@@ -415,11 +408,6 @@ namespace Robust.Client.Graphics.Clyde
             CheckGlError();
             data.VBO.Delete();
             data.EBO.Delete();
-
-            DeleteVertexArray(data.EdgeVAO);
-            CheckGlError();
-            data.EdgeVBO.Delete();
-            data.EdgeEBO.Delete();
         }
 
         private void _updateTileMapOnUpdate(ref TileChangedEvent args)

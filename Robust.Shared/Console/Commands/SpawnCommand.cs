@@ -6,9 +6,9 @@ using Robust.Shared.Placement;
 
 namespace Robust.Shared.Console.Commands;
 
-public sealed partial class SpawnCommand : LocalizedCommands
+public sealed class SpawnCommand : LocalizedCommands
 {
-    [Dependency] private IEntityManager _entityManager = default!;
+    [Dependency] private readonly IEntityManager _entityManager = default!;
 
     public override string Command => "spawn";
     public override bool RequireServerOrSingleplayer => true;

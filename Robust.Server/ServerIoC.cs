@@ -56,6 +56,9 @@ namespace Robust.Server
             deps.Register<IServerConsoleHost, ServerConsoleHost>();
             deps.Register<IComponentFactory, ServerComponentFactory>();
             deps.Register<IConGroupController, ConGroupController>();
+            deps.Register<IMapManager, NetworkedMapManager>();
+            deps.Register<IMapManagerInternal, NetworkedMapManager>();
+            deps.Register<INetworkedMapManager, NetworkedMapManager>();
             deps.Register<IEntityManager, ServerEntityManager>();
             deps.Register<IEntityNetworkManager, ServerEntityManager>();
             deps.Register<IServerEntityNetworkManager, ServerEntityManager>();

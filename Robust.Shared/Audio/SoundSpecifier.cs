@@ -12,19 +12,19 @@ using System;
 
 namespace Robust.Shared.Audio;
 
-[CopyByRef, ImplicitDataDefinitionForInheritors, Serializable, NetSerializable]
+[ImplicitDataDefinitionForInheritors, Serializable, NetSerializable]
 public abstract partial class SoundSpecifier
 {
     [DataField("params")]
     public AudioParams Params { get; set; } = AudioParams.Default;
 }
 
-[CopyByRef, Serializable, NetSerializable]
+[Serializable, NetSerializable]
 public sealed partial class SoundPathSpecifier : SoundSpecifier
 {
     public const string Node = "path";
 
-    [DataField(Node, required: true)]
+    [DataField(Node, customTypeSerializer: typeof(ResPathSerializer), required: true)]
     public ResPath Path { get; private set; }
 
     override public string ToString() =>
@@ -47,13 +47,13 @@ public sealed partial class SoundPathSpecifier : SoundSpecifier
     }
 }
 
-[CopyByRef, Serializable, NetSerializable]
+[Serializable, NetSerializable]
 public sealed partial class SoundCollectionSpecifier : SoundSpecifier
 {
     public const string Node = "collection";
 
-    [DataField(Node, required: true)]
-    public ProtoId<SoundCollectionPrototype>? Collection { get; private set; }
+    [DataField(Node, customTypeSerializer: typeof(PrototypeIdSerializer<SoundCollectionPrototype>), required: true)]
+    public string? Collection { get; private set; }
 
     override public string ToString() =>
         $"SoundCollectionSpecifier({Collection})";

@@ -14,9 +14,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    sealed partial class QuitCommand : LocalizedCommands
+    sealed class QuitCommand : LocalizedCommands
     {
-        [Dependency] private IGameController _gameController = default!;
+        [Dependency] private readonly IGameController _gameController = default!;
 
         public override string Command => "quit";
 

@@ -4,9 +4,9 @@ using Robust.Shared.Localization;
 
 namespace Robust.Server.Console.Commands
 {
-    internal sealed partial class ReloadLocalizationsCommand : LocalizedCommands
+    internal sealed class ReloadLocalizationsCommand : LocalizedCommands
     {
-        [Dependency] private ILocalizationManager _loc = default!;
+        [Dependency] private readonly ILocalizationManager _loc = default!;
 
         public override string Command => "rldloc";
 

@@ -25,6 +25,4 @@ public sealed class PointLightComponentState : ComponentState
     public float Radius;
 
     public Vector2 Offset;
-
-    public bool ContainerOccluded;
 }

@@ -34,9 +34,9 @@ using static Robust.Client.UserInterface.Controls.BoxContainer;
 
 namespace Robust.Client.Console.Commands
 {
-    internal sealed partial class DumpEntitiesCommand : LocalizedCommands
+    internal sealed class DumpEntitiesCommand : LocalizedCommands
     {
-        [Dependency] private IEntityManager _entityManager = default!;
+        [Dependency] private readonly IEntityManager _entityManager = default!;
 
         public override string Command => "dumpentities";
 
@@ -50,9 +50,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class GetComponentRegistrationCommand : LocalizedCommands
+    internal sealed class GetComponentRegistrationCommand : LocalizedCommands
     {
-        [Dependency] private IComponentFactory _componentFactory = default!;
+        [Dependency] private readonly IComponentFactory _componentFactory = default!;
 
 
         public override string Command => "getcomponentregistration";
@@ -89,9 +89,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ToggleMonitorCommand : LocalizedCommands
+    internal sealed class ToggleMonitorCommand : LocalizedCommands
     {
-        [Dependency] private IUserInterfaceManager _uiMgr = default!;
+        [Dependency] private readonly IUserInterfaceManager _uiMgr = default!;
 
 
         public override string Command => "monitor";
@@ -173,9 +173,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ShowPositionsCommand : LocalizedEntityCommands
+    internal sealed class ShowPositionsCommand : LocalizedEntityCommands
     {
-        [Dependency] private DebugDrawingSystem _debugDrawing = default!;
+        [Dependency] private readonly DebugDrawingSystem _debugDrawing = default!;
 
         public override string Command => "showpos";
 
@@ -185,9 +185,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ShowRotationsCommand : LocalizedEntityCommands
+    internal sealed class ShowRotationsCommand : LocalizedEntityCommands
     {
-        [Dependency] private DebugDrawingSystem _debugDrawing = default!;
+        [Dependency] private readonly DebugDrawingSystem _debugDrawing = default!;
 
         public override string Command => "showrot";
 
@@ -197,9 +197,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ShowVelocitiesCommand : LocalizedEntityCommands
+    internal sealed class ShowVelocitiesCommand : LocalizedEntityCommands
     {
-        [Dependency] private DebugDrawingSystem _debugDrawing = default!;
+        [Dependency] private readonly DebugDrawingSystem _debugDrawing = default!;
 
         public override string Command => "showvel";
 
@@ -209,9 +209,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ShowAngularVelocitiesCommand : LocalizedEntityCommands
+    internal sealed class ShowAngularVelocitiesCommand : LocalizedEntityCommands
     {
-        [Dependency] private DebugDrawingSystem _debugDrawing = default!;
+        [Dependency] private readonly DebugDrawingSystem _debugDrawing = default!;
 
         public override string Command => "showangvel";
 
@@ -222,9 +222,9 @@ namespace Robust.Client.Console.Commands
     }
 
 #if DEBUG
-    internal sealed partial class ShowRayCommand : LocalizedCommands
+    internal sealed class ShowRayCommand : LocalizedCommands
     {
-        [Dependency] private IEntitySystemManager _entitySystems = default!;
+        [Dependency] private readonly IEntitySystemManager _entitySystems = default!;
 
         public override string Command => "showrays";
 
@@ -250,9 +250,9 @@ namespace Robust.Client.Console.Commands
     }
 #endif
 
-    internal sealed partial class DisconnectCommand : LocalizedCommands
+    internal sealed class DisconnectCommand : LocalizedCommands
     {
-        [Dependency] private IClientNetManager _netManager = default!;
+        [Dependency] private readonly IClientNetManager _netManager = default!;
 
         public override string Command => "disconnect";
 
@@ -262,9 +262,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class EntityInfoCommand : LocalizedCommands
+    internal sealed class EntityInfoCommand : LocalizedCommands
     {
-        [Dependency] private IEntityManager _entityManager = default!;
+        [Dependency] private readonly IEntityManager _entityManager = default!;
 
         public override string Command => "entfo";
 
@@ -313,9 +313,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class SnapGridGetCell : LocalizedEntityCommands
+    internal sealed class SnapGridGetCell : LocalizedEntityCommands
     {
-        [Dependency] private SharedMapSystem _map = default!;
+        [Dependency] private readonly SharedMapSystem _map = default!;
 
         public override string Command => "sggcell";
 
@@ -358,9 +358,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class SetPlayerName : LocalizedCommands
+    internal sealed class SetPlayerName : LocalizedCommands
     {
-        [Dependency] private IBaseClient _baseClient = default!;
+        [Dependency] private readonly IBaseClient _baseClient = default!;
 
         public override string Command => "overrideplayername";
 
@@ -378,10 +378,10 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class LoadResource : LocalizedCommands
+    internal sealed class LoadResource : LocalizedCommands
     {
-        [Dependency] private IResourceCache _res = default!;
-        [Dependency] private IReflectionManager _reflection = default!;
+        [Dependency] private readonly IResourceCache _res = default!;
+        [Dependency] private readonly IReflectionManager _reflection = default!;
 
         public override string Command => "ldrsc";
 
@@ -415,10 +415,10 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ReloadResource : LocalizedCommands
+    internal sealed class ReloadResource : LocalizedCommands
     {
-        [Dependency] private IResourceCache _res = default!;
-        [Dependency] private IReflectionManager _reflection = default!;
+        [Dependency] private readonly IResourceCache _res = default!;
+        [Dependency] private readonly IReflectionManager _reflection = default!;
 
         public override string Command => "rldrsc";
 
@@ -448,9 +448,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class GridTileCount : LocalizedEntityCommands
+    internal sealed class GridTileCount : LocalizedEntityCommands
     {
-        [Dependency] private SharedMapSystem _map = default!;
+        [Dependency] private readonly SharedMapSystem _map = default!;
 
         public override string Command => "gridtc";
 
@@ -480,10 +480,10 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class GuiDumpCommand : LocalizedCommands
+    internal sealed class GuiDumpCommand : LocalizedCommands
     {
-        [Dependency] private IUserInterfaceManager _ui = default!;
-        [Dependency] private IResourceManager _resManager = default!;
+        [Dependency] private readonly IUserInterfaceManager _ui = default!;
+        [Dependency] private readonly IResourceManager _resManager = default!;
 
         public override string Command => "guidump";
 
@@ -628,9 +628,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class SetClipboardCommand : LocalizedCommands
+    internal sealed class SetClipboardCommand : LocalizedCommands
     {
-        [Dependency] private IClipboardManager _clipboard = default!;
+        [Dependency] private readonly IClipboardManager _clipboard = default!;
 
         public override string Command => "setclipboard";
 
@@ -640,9 +640,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class GetClipboardCommand : LocalizedCommands
+    internal sealed class GetClipboardCommand : LocalizedCommands
     {
-        [Dependency] private IClipboardManager _clipboard = default!;
+        [Dependency] private readonly IClipboardManager _clipboard = default!;
 
         public override string Command => "getclipboard";
 
@@ -652,9 +652,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ToggleLight : LocalizedCommands
+    internal sealed class ToggleLight : LocalizedCommands
     {
-        [Dependency] private ILightManager _light = default!;
+        [Dependency] private readonly ILightManager _light = default!;
 
         public override string Command => "togglelight";
 
@@ -665,9 +665,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ToggleFOV : LocalizedCommands
+    internal sealed class ToggleFOV : LocalizedCommands
     {
-        [Dependency] private IEyeManager _eye = default!;
+        [Dependency] private readonly IEyeManager _eye = default!;
 
         public override string Command => "togglefov";
 
@@ -677,9 +677,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ToggleHardFOV : LocalizedCommands
+    internal sealed class ToggleHardFOV : LocalizedCommands
     {
-        [Dependency] private ILightManager _light = default!;
+        [Dependency] private readonly ILightManager _light = default!;
 
         public override string Command => "togglehardfov";
 
@@ -690,9 +690,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ToggleShadows : LocalizedCommands
+    internal sealed class ToggleShadows : LocalizedCommands
     {
-        [Dependency] private ILightManager _light = default!;
+        [Dependency] private readonly ILightManager _light = default!;
 
         public override string Command => "toggleshadows";
 
@@ -703,9 +703,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ToggleLightBuf : LocalizedCommands
+    internal sealed class ToggleLightBuf : LocalizedCommands
     {
-        [Dependency] private ILightManager _light = default!;
+        [Dependency] private readonly ILightManager _light = default!;
 
         public override string Command => "togglelightbuf";
 
@@ -716,11 +716,12 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ChunkInfoCommand : LocalizedEntityCommands
+    internal sealed class ChunkInfoCommand : LocalizedEntityCommands
     {
-        [Dependency] private IEyeManager _eye = default!;
-        [Dependency] private IInputManager _input = default!;
-        [Dependency] private SharedMapSystem _mapSystem = default!;
+        [Dependency] private readonly IMapManager _map = default!;
+        [Dependency] private readonly IEyeManager _eye = default!;
+        [Dependency] private readonly IInputManager _input = default!;
+        [Dependency] private readonly SharedMapSystem _mapSystem = default!;
 
         public override string Command => "chunkinfo";
 
@@ -728,7 +729,7 @@ namespace Robust.Client.Console.Commands
         {
             var mousePos = _eye.PixelToMap(_input.MouseScreenPosition);
 
-            if (!_mapSystem.TryFindGridAt(mousePos, out var gridUid, out var grid))
+            if (!_map.TryFindGridAt(mousePos, out var gridUid, out var grid))
             {
                 shell.WriteLine("No grid under your mouse cursor.");
                 return;
@@ -742,11 +743,11 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ReloadShadersCommand : LocalizedCommands
+    internal sealed class ReloadShadersCommand : LocalizedCommands
     {
-        [Dependency] private IResourceCache _cache = default!;
-        [Dependency] private IResourceManagerInternal _resManager = default!;
-        [Dependency] private ITaskManager _taskManager = default!;
+        [Dependency] private readonly IResourceCache _cache = default!;
+        [Dependency] private readonly IResourceManagerInternal _resManager = default!;
+        [Dependency] private readonly ITaskManager _taskManager = default!;
 
         public override string Command => "rldshader";
 
@@ -908,9 +909,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class ClydeDebugLayerCommand : LocalizedCommands
+    internal sealed class ClydeDebugLayerCommand : LocalizedCommands
     {
-        [Dependency] private IClydeInternal _clyde = default!;
+        [Dependency] private readonly IClydeInternal _clyde = default!;
 
         public override string Command => "cldbglyr";
 
@@ -931,9 +932,9 @@ namespace Robust.Client.Console.Commands
         }
     }
 
-    internal sealed partial class GetKeyInfoCommand : LocalizedCommands
+    internal sealed class GetKeyInfoCommand : LocalizedCommands
     {
-        [Dependency] private IClydeInternal _clyde = default!;
+        [Dependency] private readonly IClydeInternal _clyde = default!;
 
         public override string Command => "keyinfo";
 

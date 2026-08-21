@@ -31,21 +31,16 @@ public sealed class MustCallBaseAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterCompilationStartAction(compilationContext =>
-        {
-            var attrSymbol = compilationContext.Compilation.GetTypeByMetadataName(Attribute);
-            if (attrSymbol is null)
-                return;
-
-            compilationContext.RegisterSymbolAction(
-                symbolContext => AnalyzeSymbol(symbolContext, attrSymbol),
-                SymbolKind.Method);
-        });
+        context.RegisterSymbolAction(AnalyzeSymbol, SymbolKind.Method);
     }
 
-    private static void AnalyzeSymbol(SymbolAnalysisContext context, INamedTypeSymbol attrSymbol)
+    private static void AnalyzeSymbol(SymbolAnalysisContext context)
     {
         if (context.Symbol is not IMethodSymbol { IsOverride: true } method)
+            return;
+
+        var attrSymbol = context.Compilation.GetTypeByMetadataName(Attribute);
+        if (attrSymbol == null)
             return;
 
         if (DoesMethodOverriderHaveAttribute(method, attrSymbol) is not { } data)

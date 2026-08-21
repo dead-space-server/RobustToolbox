@@ -152,7 +152,7 @@ namespace Robust.Client.GameStates
         /// Queue a collection of entities that are to be detached to null-space & marked as PVS-detached.
         /// This store and modify the list given to it.
         /// </summary>
-        void QueuePvsDetach(List<NetEntity> entities, GameTick tick, List<NetEntity>? chunkEntities = null);
+        void QueuePvsDetach(List<NetEntity> entities, GameTick tick);
 
         /// <summary>
         /// Immediately detach several entities.

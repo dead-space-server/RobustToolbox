@@ -59,32 +59,35 @@ public sealed partial class GridFixtureSystem
 
         var sw = new Stopwatch();
         var tiles = new List<(Vector2i Indices, Tile Tile)>();
-        foreach (var tileRef in _maps.GetAllTiles(gridBUid, gridB))
+        var enumerator = _maps.GetAllTilesEnumerator(gridBUid, gridB);
+
+        while (enumerator.MoveNext(out var tileRef))
         {
-            var offsetTile = Vector2.Transform(new Vector2(tileRef.GridIndices.X, tileRef.GridIndices.Y) + gridA.TileSizeHalfVector, matrix);
-            tiles.Add((offsetTile.Floored(), tileRef.Tile));
+            var offsetTile = Vector2.Transform(new Vector2(tileRef.Value.GridIndices.X, tileRef.Value.GridIndices.Y) + gridA.TileSizeHalfVector, matrix);
+            tiles.Add((offsetTile.Floored(), tileRef.Value.Tile));
         }
 
         _maps.SetTiles(gridAUid, gridA, tiles);
 
+        enumerator = _maps.GetAllTilesEnumerator(gridBUid, gridB);
         var rotationDiff = matrix.Rotation();
 
-        foreach (var tileRef in _maps.GetAllTiles(gridBUid, gridB))
+        while (enumerator.MoveNext(out var tileRef))
         {
-            var chunkOrigin = SharedMapSystem.GetChunkIndices(tileRef.GridIndices, gridB.ChunkSize);
+            var chunkOrigin = SharedMapSystem.GetChunkIndices(tileRef.Value.GridIndices, gridB.ChunkSize);
 
             if (!_maps.TryGetChunk(gridBUid, gridB, chunkOrigin, out var chunk))
             {
                 continue;
             }
 
-            var chunkLocalTile = SharedMapSystem.GetChunkRelative(tileRef.GridIndices, gridB.ChunkSize);
+            var chunkLocalTile = SharedMapSystem.GetChunkRelative(tileRef.Value.GridIndices, gridB.ChunkSize);
             var snapgrid = chunk.GetSnapGrid((ushort) chunkLocalTile.X, (ushort) chunkLocalTile.Y);
 
             if (snapgrid == null || snapgrid.Count == 0)
                 continue;
 
-            var offsetTile = Vector2.Transform(new Vector2(tileRef.GridIndices.X, tileRef.GridIndices.Y) + gridA.TileSizeHalfVector, matrix);
+            var offsetTile = Vector2.Transform(new Vector2(tileRef.Value.GridIndices.X, tileRef.Value.GridIndices.Y) + gridA.TileSizeHalfVector, matrix);
             var tileIndex = offsetTile.Floored();
 
             for (var j = snapgrid.Count - 1; j >= 0; j--)
@@ -93,7 +96,7 @@ public sealed partial class GridFixtureSystem
                 var xform = _xformQuery.GetComponent(ent);
                 _xformSystem.ReAnchor(ent, xform,
                     gridB, gridA,
-                    tileRef.GridIndices, tileIndex,
+                    tileRef.Value.GridIndices, tileIndex,
                     gridBUid, gridAUid,
                     xformB, xformA,
                     rotationDiff);
@@ -104,9 +107,11 @@ public sealed partial class GridFixtureSystem
             DebugTools.Assert(snapgrid.Count == 0);
         }
 
-        foreach (var tileRef in _maps.GetAllTiles(gridBUid, gridB))
+        enumerator = _maps.GetAllTilesEnumerator(gridBUid, gridB);
+
+        while (enumerator.MoveNext(out var tileRef))
         {
-            var bounds = _lookup.GetLocalBounds(tileRef.GridIndices, gridB.TileSize);
+            var bounds = _lookup.GetLocalBounds(tileRef.Value.GridIndices, gridB.TileSize);
 
             _entSet.Clear();
             _lookup.GetLocalEntitiesIntersecting(gridBUid, bounds, _entSet, LookupFlags.All | ~LookupFlags.Contained | LookupFlags.Approximate);

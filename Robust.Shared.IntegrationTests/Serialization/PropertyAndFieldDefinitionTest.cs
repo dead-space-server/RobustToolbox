@@ -76,8 +76,9 @@ namespace Robust.UnitTesting.Shared.Serialization
             var dataDefinition = ((SerializationManager) Serialization).GetDefinition(propertyInfo.DeclaringType!);
             Assert.That(dataDefinition, Is.Not.Null);
 
+            var alwaysPushDataField = propertyInfo.GetAttribute<DataFieldAttribute>();
             var propertyDefinition =
-                dataDefinition!.BaseFieldDefinitions.Single(e => (e.Tag ?? e.CamelCasedName).Equals(GetOnlyPropertyWithOtherAttributeFieldTargetedName));
+                dataDefinition!.BaseFieldDefinitions.Single(e => e.Attribute.Equals(alwaysPushDataField));
             var inheritanceBehaviour = propertyDefinition.InheritanceBehavior;
             Assert.That(inheritanceBehaviour, Is.EqualTo(InheritanceBehavior.Always));
 
@@ -99,15 +100,16 @@ namespace Robust.UnitTesting.Shared.Serialization
             Assert.That(propertyInfo.GetBackingField()!.GetAttribute<NeverPushInheritanceAttribute>(), Is.Null);
             Assert.That(propertyInfo.GetAttribute<NeverPushInheritanceAttribute>(true), Is.Not.Null);
 
+            var neverPushDataField = propertyInfo.GetAttribute<DataFieldAttribute>();
             propertyDefinition =
-                dataDefinition!.BaseFieldDefinitions.Single(e => (e.Tag ?? e.CamelCasedName).Equals(GetOnlyPropertyFieldTargetedAndOtherAttributeName));
+                dataDefinition!.BaseFieldDefinitions.Single(e => e.Attribute.Equals(neverPushDataField));
             inheritanceBehaviour = propertyDefinition.InheritanceBehavior;
             dataDefinition = ((SerializationManager) Serialization).GetDefinition(property!.DeclaringType!);
             Assert.That(dataDefinition, Is.Not.Null);
             Assert.That(inheritanceBehaviour, Is.EqualTo(InheritanceBehavior.Never));
         }
 
-        [DataDefinition]
+        [Robust.Shared.Serialization.Manager.Attributes.DataDefinition]
         internal sealed partial class PropertyAndFieldDefinitionTestDefinition
         {
             [DataField(GetOnlyPropertyName)]

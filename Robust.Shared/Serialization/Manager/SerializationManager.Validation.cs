@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
-using System.Reflection;
 using Robust.Shared.Serialization.Manager.Definition;
 using Robust.Shared.Serialization.Markdown;
 using Robust.Shared.Serialization.Markdown.Mapping;
@@ -23,91 +21,119 @@ public sealed partial class SerializationManager
 
     private readonly ConcurrentDictionary<(Type type, Type node), ValidationDelegate> _validationDelegates = new();
 
-    private ValidationDelegate GetOrCreateValidationDelegate(Type type, Type nodeType)
+    private ValidationDelegate GetOrCreateValidationDelegate(Type type, Type node)
     {
-        return _validationDelegates.GetOrAdd((type, nodeType), static (key, manager) =>
+        return _validationDelegates.GetOrAdd((type, node), static (key, manager) =>
         {
-            var validate = Validate(manager, key.type, key.node);
-            return (node, context) =>
+            var managerConst = Expression.Constant(manager);
+            var nodeParam = Expression.Parameter(typeof(DataNode), "node");
+            var contextParam = Expression.Parameter(typeof(ISerializationContext), "context");
+
+            Expression call;
+            if (manager._regularSerializerProvider.TryGetTypeNodeSerializer(typeof(ITypeValidator<,>), key.type, key.node, out var serializer))
             {
-                if (!IsNull(node))
-                    return validate(node, context);
+                var serializerConst = Expression.Constant(serializer);
 
-                if (key.type.IsNullable())
-                    return new ValidatedValueNode(node);
+                call = Expression.Call(
+                    managerConst,
+                    nameof(ValidateNode),
+                    new []{key.type, key.node},
+                    serializerConst,
+                    Expression.Convert(nodeParam, key.node),
+                    contextParam);
+            }
+            else if (key.type.IsArray)
+            {
+                if (!key.node.IsAssignableTo(typeof(SequenceDataNode)))
+                {
+                    call = manager.ErrorNodeExpression(nodeParam, "Invalid nodetype for array.", true);
+                }
+                else
+                {
+                    var elementType = key.type.GetElementType();
+                    if (elementType == null)
+                        throw new ArgumentException($"Failed to get ElementType of ArrayType {key.type}");
 
-                return new ErrorNode(node, "Non-nullable field contained a null value");
-            };
+                    call = Expression.Call(
+                        managerConst,
+                        nameof(ValidateArray),
+                        new[] { elementType },
+                        Expression.Convert(nodeParam, typeof(SequenceDataNode)),
+                        contextParam);
+                }
+            }
+            else if (key.type.IsEnum)
+            {
+                // Does not include cases where the target type is System.Enum.
+                // Those get handled by the generic enum serializer which uses reflection to resolve strings into enums.
+                DebugTools.Assert(key.type != typeof(Enum));
+
+                call = Expression.Call(
+                    managerConst,
+                    nameof(ValidateEnum),
+                    new[] { key.type },
+                    nodeParam);
+            }
+            else if (key.type.IsAssignableTo(typeof(ISelfSerialize)))
+            {
+                if (key.node.IsAssignableTo(typeof(ValueDataNode)))
+                {
+                    call = manager.ValidateNodeExpression(nodeParam);
+                }
+                else
+                {
+                    call = manager.ErrorNodeExpression(nodeParam, "Invalid nodetype for ISelfSerialize");
+                }
+            }
+            else if (manager.TryGetDefinition(key.type, out var dataDefinition))
+            {
+                var dataDefConst = Expression.Constant(dataDefinition, typeof(DataDefinition<>).MakeGenericType(key.type));
+
+                call = Expression.Call(
+                    managerConst,
+                    nameof(ValidateDataDefinition),
+                    new []{key.type},
+                    nodeParam,
+                    dataDefConst,
+                    contextParam);
+            }
+            else
+            {
+                call = Expression.Call(
+                    managerConst,
+                    nameof(ValidateGenericValue),
+                    new[] { key.type, key.node },
+                    nodeParam,
+                    contextParam);
+            }
+
+            //insert a nullcheck at the beginning, but ONLY if we are actually found a way of validating this node
+            call = Expression.Condition(
+                Expression.Call(
+                    typeof(SerializationManager),
+                    nameof(IsNull),
+                    Type.EmptyTypes,
+                    nodeParam),
+                Expression.Convert(key.type.IsNullable()
+                    ? manager.ValidateNodeExpression(nodeParam)
+                    : manager.ErrorNodeExpression(nodeParam, "Non-nullable field contained a null value", true), typeof(ValidationNode)),
+                Expression.Convert(call, typeof(ValidationNode)));
+
+            return Expression.Lambda<ValidationDelegate>(
+                call,
+                nodeParam,
+                contextParam).Compile();
         }, this);
     }
 
-    private static Func<DataNode, ISerializationContext?, ValidationNode> Validate(SerializationManager serialization, Type type, Type nodeType)
+    private Expression ErrorNodeExpression(ParameterExpression nodeParam, string message, bool alwaysRelevant = true)
     {
-        if (serialization._regularSerializerProvider.TryGetTypeNodeSerializer(typeof(ITypeValidator<,>),
-                type,
-                nodeType,
-                out var serializer))
-        {
-            var method = typeof(SerializationManager)
-                .GetMethods(BindingFlags.Instance | BindingFlags.Public)
-                .First(m => m.Name == nameof(ValidateNode) && m.GetGenericArguments().Length == 2)
-                .MakeGenericMethod(type, nodeType);
-            return (node, context) => (ValidationNode) method.Invoke(serialization, [serializer, node, context])!;
-        }
+        return ExpressionUtils.NewExpression<ErrorNode>(nodeParam, message, alwaysRelevant);
+    }
 
-        if (type.IsArray)
-        {
-            if (!nodeType.IsAssignableTo(typeof(SequenceDataNode)))
-                return (node, _) => new ErrorNode(node, "Invalid nodetype for array.");
-
-            var elementType = type.GetElementType();
-            if (elementType == null)
-                throw new ArgumentException($"Failed to get ElementType of ArrayType {type}");
-
-            var method = typeof(SerializationManager)
-                .GetMethod(nameof(ValidateArray),
-                    BindingFlags.Instance | BindingFlags.NonPublic,
-                    [typeof(SequenceDataNode), typeof(ISerializationContext)])!
-                .MakeGenericMethod(elementType);
-            return (node, context) => (ValidationNode) method.Invoke(serialization, [node, context])!;
-        }
-
-        if (type.IsEnum)
-        {
-            DebugTools.Assert(type != typeof(Enum));
-            var method = typeof(SerializationManager)
-                .GetMethod(nameof(ValidateEnum), BindingFlags.Instance | BindingFlags.NonPublic, [typeof(DataNode)])!
-                .MakeGenericMethod(type);
-            return (node, _) => (ValidationNode)method.Invoke(serialization, [node])!;
-        }
-
-        if (type.IsAssignableTo(typeof(ISelfSerialize)))
-        {
-            if (nodeType.IsAssignableTo(typeof(ValueDataNode)))
-                return (node, _) => new ValidatedValueNode(node);
-
-            return (node, _) => new ErrorNode(node, "Invalid nodetype for ISelfSerialize");
-        }
-
-        if (serialization.TryGetDefinition(type, out var dataDefinition))
-        {
-            var method = typeof(SerializationManager)
-                .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic)
-                .First(m => m.Name == nameof(ValidateDataDefinition))
-                .MakeGenericMethod(type);
-            return (node, context) => (ValidationNode)method.Invoke(serialization, [node, dataDefinition, context])!;
-        }
-        else
-        {
-            var method = typeof(SerializationManager)
-                .GetMethod(nameof(ValidateGenericValue),
-                    BindingFlags.Instance | BindingFlags.NonPublic,
-                    [
-                        typeof(DataNode), typeof(ISerializationContext)
-                    ])!
-                .MakeGenericMethod(type, nodeType);
-            return (node, context) => (ValidationNode)method.Invoke(serialization, [node, context])!;
-        }
+    private Expression ValidateNodeExpression(ParameterExpression nodeParam)
+    {
+        return ExpressionUtils.NewExpression<ValidatedValueNode>(nodeParam);
     }
 
     private ValidationNode ValidateArray<TElem>(SequenceDataNode sequenceDataNode, ISerializationContext? context)
@@ -144,7 +170,7 @@ public sealed partial class SerializationManager
         return new ValidatedValueNode(node);
     }
 
-    private ValidationNode ValidateDataDefinition<T>(DataNode node, DataDefinition<T> dataDefinition, ISerializationContext? context) where T : notnull, ISerializationGenerated<T>
+    private ValidationNode ValidateDataDefinition<T>(DataNode node, DataDefinition<T> dataDefinition, ISerializationContext? context) where T : notnull
     {
         return node switch
         {
@@ -205,7 +231,11 @@ public sealed partial class SerializationManager
         if (node.Tag?.StartsWith("!type:") == true)
         {
             var typeString = node.Tag.Substring(6);
-            if (!TryResolveConcreteType(underlyingType, typeString, out underlyingType))
+            try
+            {
+                underlyingType = ResolveConcreteType(underlyingType, typeString);
+            }
+            catch (InvalidOperationException)
             {
                 return new ErrorNode(node, $"Failed to resolve !type tag: {typeString}", false);
             }

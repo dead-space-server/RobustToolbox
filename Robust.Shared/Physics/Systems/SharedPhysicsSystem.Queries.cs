@@ -22,8 +22,8 @@ namespace Robust.Shared.Physics.Systems
     public partial class SharedPhysicsSystem
     {
 #if DEBUG
-        [Dependency] private SharedDebugRayDrawingSystem _sharedDebugRaySystem = default!;
-        [Dependency] private INetManager _netMan = default!;
+        [Dependency] private readonly SharedDebugRayDrawingSystem _sharedDebugRaySystem = default!;
+        [Dependency] private readonly INetManager _netMan = default!;
 #endif
 
         /// <summary>
@@ -139,19 +139,32 @@ namespace Robust.Shared.Physics.Systems
         /// <summary>
         /// Get all entities colliding with a certain body.
         /// </summary>
-        [Obsolete("Use EntityLookupSystem.ForEachFixtureIntersecting or EntityLookupSystem.GetFixturesIntersecting")]
+        [Obsolete("Use EntityLookupSystem")]
         public IEnumerable<PhysicsComponent> GetCollidingEntities(MapId mapId, in Box2 worldAABB)
         {
-            if (mapId == MapId.Nullspace)
-                return Array.Empty<PhysicsComponent>();
+            if (mapId == MapId.Nullspace) return Array.Empty<PhysicsComponent>();
 
+            var aabb = worldAABB;
             var bodies = new HashSet<PhysicsComponent>();
-            _lookup.ForEachFixtureIntersecting(
-                mapId,
-                worldAABB,
-                ref bodies,
-                new AddPhysicsBodyCallback(),
-                GetAllFixtureQueryArgs());
+            var state = (_transform, bodies, aabb);
+
+            _broadphase.GetBroadphases(mapId, worldAABB, ref state, static
+                (
+                    Entity<BroadphaseComponent> entity,
+                    ref (SharedTransformSystem _transform, HashSet<PhysicsComponent> bodies, Box2 aabb) tuple) =>
+                {
+                    var gridAABB = tuple._transform.GetInvWorldMatrix(entity.Owner).TransformBox(tuple.aabb);
+
+                    foreach (var proxy in entity.Comp.StaticTree.QueryAabb(gridAABB, false))
+                    {
+                        tuple.bodies.Add(proxy.Body);
+                    }
+
+                    foreach (var proxy in entity.Comp.DynamicTree.QueryAabb(gridAABB, false))
+                    {
+                        tuple.bodies.Add(proxy.Body);
+                    }
+                });
 
             return bodies;
         }
@@ -159,51 +172,37 @@ namespace Robust.Shared.Physics.Systems
         /// <summary>
         /// Get all entities colliding with a certain body.
         /// </summary>
-        [Obsolete("Use EntityLookupSystem.ForEachFixtureIntersecting or EntityLookupSystem.GetFixturesIntersecting")]
+        [Obsolete("Use EntityLookupSystem")]
         public IEnumerable<Entity<PhysicsComponent>> GetCollidingEntities(MapId mapId, in Box2Rotated worldBounds)
         {
             if (mapId == MapId.Nullspace)
                 return Array.Empty<Entity<PhysicsComponent>>();
 
             var bodies = new HashSet<Entity<PhysicsComponent>>();
-            _lookup.ForEachFixtureIntersecting(
-                mapId,
-                worldBounds,
-                ref bodies,
-                new AddEntityPhysicsBodyCallback(),
-                GetAllFixtureQueryArgs());
+
+            var state = (_transform, bodies, worldBounds);
+
+            _broadphase.GetBroadphases(mapId, worldBounds.CalcBoundingBox(), ref state,
+                static (
+                    Entity<BroadphaseComponent> entity,
+                    ref (SharedTransformSystem _transform, HashSet<Entity<PhysicsComponent>> bodies, Box2Rotated
+                        worldBounds
+                        ) tuple) =>
+                {
+                    var gridAABB = tuple._transform.GetInvWorldMatrix(entity.Owner).TransformBox(tuple.worldBounds);
+
+                    foreach (var proxy in entity.Comp.StaticTree.QueryAabb(gridAABB, false))
+                    {
+                        tuple.bodies.Add((proxy.Entity, proxy.Body));
+                    }
+
+                    foreach (var proxy in entity.Comp.DynamicTree.QueryAabb(gridAABB, false))
+                    {
+                        tuple.bodies.Add((proxy.Entity, proxy.Body));
+                    }
+                });
 
             return bodies;
-        }
-
-        private static FixtureQueryArgs GetAllFixtureQueryArgs()
-        {
-            return new FixtureQueryArgs(
-                new QueryFilter
-                {
-                    LayerBits = -1L,
-                    MaskBits = -1L,
-                    Flags = QueryFlags.Dynamic | QueryFlags.Static | QueryFlags.Sensors,
-                },
-                Approximate: true);
-        }
-
-        private readonly struct AddPhysicsBodyCallback : IFixtureQueryCallback<HashSet<PhysicsComponent>>
-        {
-            public bool Invoke(ref HashSet<PhysicsComponent> state, in FixtureProxy fixture)
-            {
-                state.Add(fixture.Body);
-                return true;
-            }
-        }
-
-        private readonly struct AddEntityPhysicsBodyCallback : IFixtureQueryCallback<HashSet<Entity<PhysicsComponent>>>
-        {
-            public bool Invoke(ref HashSet<Entity<PhysicsComponent>> state, in FixtureProxy fixture)
-            {
-                state.Add((fixture.Entity, fixture.Body));
-                return true;
-            }
         }
 
         public void GetContactingEntities(Entity<PhysicsComponent?> ent, HashSet<EntityUid> contacting, bool approximate = false)
@@ -554,20 +553,18 @@ namespace Robust.Shared.Physics.Systems
                 if (bodyA.Hard && !fixtureA.Hard)
                     continue;
 
-                var shapeA = fixtureA.Shape;
-                for (var i = 0; i < shapeA.ChildCount; i++)
+                for (var i = 0; i < fixtureA.Shape.ChildCount; i++)
                 {
-                    input.ProxyA.Set(in shapeA, i);
+                    input.ProxyA.Set(fixtureA.Shape, i);
 
                     foreach (var fixtureB in managerB.Fixtures.Values)
                     {
                         if (bodyB.Hard && !fixtureB.Hard)
                             continue;
 
-                        var shapeB = fixtureB.Shape;
-                        for (var j = 0; j < shapeB.ChildCount; j++)
+                        for (var j = 0; j < fixtureB.Shape.ChildCount; j++)
                         {
-                            input.ProxyB.Set(in shapeB, j);
+                            input.ProxyB.Set(fixtureB.Shape, j);
                             DistanceManager.ComputeDistance(out var output, out _, input);
 
                             if (distance < output.Distance)
@@ -629,9 +626,8 @@ namespace Robust.Shared.Physics.Systems
 
                 DebugTools.Assert(fixtureA.ProxyCount <= 1);
 
-                var shapeA = fixtureA.Shape;
-                input.ProxyA.Set(in shapeA, 0);
-                input.ProxyB.Set(in pointShape, 0);
+                input.ProxyA.Set(fixtureA.Shape, 0);
+                input.ProxyB.Set(pointShape, 0);
                 DistanceManager.ComputeDistance(out var output, out _, input);
 
                 if (distance < output.Distance)

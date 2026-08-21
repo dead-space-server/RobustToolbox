@@ -1,11 +1,13 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using System.Collections.Generic;
+using System.Linq;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using XamlX.TypeSystem;
 
 namespace Robust.Client.NameGenerator
 {
     /// <summary>
-    /// Taken from https://github.com/AvaloniaUI/Avalonia/blob/9d28762f1439e58e9764d104223b73eef93b26b5/src/tools/Avalonia.Generators/Compiler/RoslynTypeSystem.cs
+    /// Taken from https://github.com/AvaloniaUI/Avalonia.NameGenerator/blob/ecc9677a23de5cbc90af07ccac14e31c0da41d6a/src/Avalonia.NameGenerator/Infrastructure/RoslynTypeSystem.cs
     /// </summary>
      public class RoslynTypeSystem : IXamlTypeSystem
     {
@@ -25,11 +27,11 @@ namespace Robust.Client.NameGenerator
             _assemblies.AddRange(assemblySymbols);
         }
 
-        public IEnumerable<IXamlAssembly> Assemblies => _assemblies;
+        public IReadOnlyList<IXamlAssembly> Assemblies => _assemblies;
 
         public IXamlAssembly FindAssembly(string substring) => _assemblies[0];
 
-        public IXamlType? FindType(string name)
+        public IXamlType FindType(string name)
         {
             foreach (var assembly in _assemblies)
             {
@@ -41,7 +43,7 @@ namespace Robust.Client.NameGenerator
             return null;
         }
 
-        public IXamlType? FindType(string name, string assembly)
+        public IXamlType FindType(string name, string assembly)
         {
             foreach (var assemblyInstance in _assemblies)
             {
@@ -71,7 +73,7 @@ namespace Robust.Client.NameGenerator
                 .Select(data => new RoslynAttribute(data, this))
                 .ToList();
 
-        public IXamlType? FindType(string fullName)
+        public IXamlType FindType(string fullName)
         {
             var type = _symbol.GetTypeByMetadataName(fullName);
             return type is null ? null : new RoslynType(type, this);
@@ -93,14 +95,14 @@ namespace Robust.Client.NameGenerator
             other is RoslynAttribute attribute &&
             _data == attribute._data;
 
-        public IXamlType Type => new RoslynType(_data.AttributeClass!, _assembly);
+        public IXamlType Type => new RoslynType(_data.AttributeClass, _assembly);
 
-        public List<object?> Parameters =>
+        public List<object> Parameters =>
             _data.ConstructorArguments
                 .Select(argument => argument.Value)
                 .ToList();
 
-        public Dictionary<string, object?> Properties =>
+        public Dictionary<string, object> Properties =>
             _data.NamedArguments.ToDictionary(
                 pair => pair.Key,
                 pair => pair.Value.Value);
@@ -167,24 +169,15 @@ namespace Robust.Client.NameGenerator
 
         public bool IsArray => false;
 
-        public IXamlType? ArrayElementType { get; } = null;
+        public IXamlType ArrayElementType { get; } = null;
 
-        public IXamlType MakeArrayType(int dimensions) => throw new NotImplementedException();
+        public IXamlType MakeArrayType(int dimensions) => null;
 
-        public IXamlType? BaseType => _symbol.BaseType == null ? null : new RoslynType(_symbol.BaseType, _assembly);
+        public IXamlType BaseType => _symbol.BaseType == null ? null : new RoslynType(_symbol.BaseType, _assembly);
 
         public bool IsValueType { get; } = false;
 
         public bool IsEnum { get; } = false;
-
-        public bool IsPublic => _symbol.DeclaredAccessibility == Accessibility.Public;
-
-        public bool IsNestedPrivate => _symbol.DeclaredAccessibility == Accessibility.Private;
-
-        public bool IsFunctionPointer => false;
-
-        public IXamlType? DeclaringType =>
-            _symbol.ContainingType is { } containingType ? new RoslynType(containingType, _assembly) : null;
 
         public IReadOnlyList<IXamlType> Interfaces =>
             _symbol.AllInterfaces
@@ -193,7 +186,7 @@ namespace Robust.Client.NameGenerator
 
         public bool IsInterface => _symbol.IsAbstract;
 
-        public IXamlType GetEnumUnderlyingType() => throw new NotImplementedException();
+        public IXamlType GetEnumUnderlyingType() => null;
 
         public IReadOnlyList<IXamlType> GenericParameters { get; } = new List<IXamlType>();
     }
@@ -223,12 +216,6 @@ namespace Robust.Client.NameGenerator
                 .OfType<INamedTypeSymbol>()
                 .Select(type => new RoslynType(type, _assembly))
                 .ToList();
-
-        public string Name => _symbol.Name;
-
-        public IXamlType DeclaringType => new RoslynType(_symbol.ContainingType, _assembly);
-
-        public IXamlParameterInfo GetParameterInfo(int index) => new RoslynParameter(_assembly, _symbol.Parameters[index]);
     }
 
     public class RoslynProperty : IXamlProperty
@@ -251,35 +238,15 @@ namespace Robust.Client.NameGenerator
         public IXamlType PropertyType =>
             _symbol.Type is INamedTypeSymbol namedTypeSymbol
                 ? new RoslynType(namedTypeSymbol, _assembly)
-                : throw new InvalidOperationException($"Roslyn property type {_symbol.Type} is not supported.");
+                : null;
 
-        public IXamlType DeclaringType => new RoslynType(_symbol.ContainingType, _assembly);
+        public IXamlMethod Getter => _symbol.GetMethod == null ? null : new RoslynMethod(_symbol.GetMethod, _assembly);
 
-        public IXamlMethod? Getter => _symbol.GetMethod == null ? null : new RoslynMethod(_symbol.GetMethod, _assembly);
-
-        public IXamlMethod? Setter => _symbol.SetMethod == null ? null : new RoslynMethod(_symbol.SetMethod, _assembly);
+        public IXamlMethod Setter => _symbol.SetMethod == null ? null : new RoslynMethod(_symbol.SetMethod, _assembly);
 
         public IReadOnlyList<IXamlCustomAttribute> CustomAttributes { get; } = new List<IXamlCustomAttribute>();
 
         public IReadOnlyList<IXamlType> IndexerParameters { get; } = new List<IXamlType>();
-    }
-
-    public class RoslynParameter : IXamlParameterInfo
-    {
-        private readonly RoslynAssembly _assembly;
-        private readonly IParameterSymbol _symbol;
-
-        public RoslynParameter(RoslynAssembly assembly, IParameterSymbol symbol)
-        {
-            _assembly = assembly;
-            _symbol = symbol;
-        }
-
-        public string Name => _symbol.Name;
-
-        public IXamlType ParameterType => new RoslynType((INamedTypeSymbol)_symbol.Type, _assembly);
-
-        public IReadOnlyList<IXamlCustomAttribute> CustomAttributes => Array.Empty<IXamlCustomAttribute>();
     }
 
     public class RoslynMethod : IXamlMethod
@@ -301,16 +268,6 @@ namespace Robust.Client.NameGenerator
 
         public bool IsPublic => true;
 
-        public bool IsPrivate => _symbol.DeclaredAccessibility == Accessibility.Private;
-
-        public bool IsFamily => _symbol.DeclaredAccessibility == Accessibility.Protected;
-
-        public bool ContainsGenericParameters => _symbol.TypeParameters.Any();
-
-        public bool IsGenericMethod => _symbol.IsGenericMethod;
-
-        public bool IsGenericMethodDefinition => _symbol.IsDefinition && _symbol.IsGenericMethod;
-
         public bool IsStatic => false;
 
         public IXamlType ReturnType => new RoslynType((INamedTypeSymbol) _symbol.ReturnType, _assembly);
@@ -321,18 +278,10 @@ namespace Robust.Client.NameGenerator
                 .Select(type => new RoslynType(type, _assembly))
                 .ToList();
 
-        public IXamlType DeclaringType => new RoslynType((INamedTypeSymbol)_symbol.ReceiverType! as INamedTypeSymbol, _assembly);
+        public IXamlType DeclaringType => new RoslynType((INamedTypeSymbol)_symbol.ReceiverType, _assembly);
 
-        public IReadOnlyList<IXamlType> GenericParameters => throw new NotImplementedException();
-
-        public IReadOnlyList<IXamlType> GenericArguments => _symbol.TypeArguments
-            .Select(ga => new RoslynType((INamedTypeSymbol)ga, _assembly))
-            .ToArray();
-
-        public IXamlMethod MakeGenericMethod(IReadOnlyList<IXamlType> typeArguments) => throw new NotImplementedException();
+        public IXamlMethod MakeGenericMethod(IReadOnlyList<IXamlType> typeArguments) => null;
 
         public IReadOnlyList<IXamlCustomAttribute> CustomAttributes { get; } = new List<IXamlCustomAttribute>();
-
-        public IXamlParameterInfo GetParameterInfo(int index) => new RoslynParameter(_assembly, _symbol.Parameters[index]);
     }
 }

@@ -5,9 +5,9 @@ using Robust.Shared.IoC;
 
 namespace Robust.Client.GameObjects
 {
-    public sealed partial class MidiSystem : EntitySystem
+    public sealed class MidiSystem : EntitySystem
     {
-        [Dependency] private IMidiManager _midiManager = default!;
+        [Dependency] private readonly IMidiManager _midiManager = default!;
 
         public override void Initialize()
         {

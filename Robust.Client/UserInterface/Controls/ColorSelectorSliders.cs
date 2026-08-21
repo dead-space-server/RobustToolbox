@@ -9,9 +9,9 @@ using Robust.Shared.Maths;
 namespace Robust.Client.UserInterface.Controls;
 
 // condensed version of the original ColorSlider set
-public sealed partial class ColorSelectorSliders : Control
+public sealed class ColorSelectorSliders : Control
 {
-    [Dependency] private ILocalizationManager _localization = default!;
+    [Dependency] private readonly ILocalizationManager _localization = default!;
 
     public Color Color
     {
@@ -73,13 +73,11 @@ public sealed partial class ColorSelectorSliders : Control
     private SpinBox _middleInputBox;
     private SpinBox _bottomInputBox;
     private SpinBox _alphaInputBox;
-    private LineEdit _hexInputEdit;
 
     private Label _topSliderLabel = new();
     private Label _middleSliderLabel = new();
     private Label _bottomSliderLabel = new();
     private Label _alphaSliderLabel = new();
-    private Label _hexInputLabel = new();
     private Label _colorDescriptionLabel = new();
 
     private OptionButton _typeSelector;
@@ -153,23 +151,12 @@ public sealed partial class ColorSelectorSliders : Control
         };
         _alphaInputBox.InitDefaultButtons();
 
-        _hexInputEdit = new LineEdit
-        {
-            HorizontalExpand = true,
-            VerticalAlignment = VAlignment.Center,
-        };
-
         _topInputBox.ValueChanged += value => { OnInputBoxValueChanged(value, ColorSliderOrder.Top); };
         _middleInputBox.ValueChanged += value => { OnInputBoxValueChanged(value, ColorSliderOrder.Middle); };
         _bottomInputBox.ValueChanged += value => { OnInputBoxValueChanged(value, ColorSliderOrder.Bottom); };
         _alphaInputBox.ValueChanged += value => { OnInputBoxValueChanged(value, ColorSliderOrder.Alpha); };
-        _hexInputEdit.OnTextEntered += OnHexInputValueChanged;
-        // The above triggers ONLY when the Enter key is pressed, which can be a bit unintuitive
-        // when making changes to multiple colors (e.g. editing markings)
-        _hexInputEdit.OnFocusExit += OnHexInputValueChanged;
 
         _alphaSliderLabel.Text = Loc.GetString("color-selector-sliders-alpha");
-        _hexInputLabel.Text = Loc.GetString("color-selector-input-hex");
 
         _typeSelector = new OptionButton();
         foreach (var ty in Enum.GetValues<ColorSelectorType>())
@@ -229,16 +216,10 @@ public sealed partial class ColorSelectorSliders : Control
         _alphaSliderBox.AddChild(_alphaSlider);
         _alphaSliderBox.AddChild(_alphaInputBox);
 
-        var hexInputBox = new BoxContainer();
-
-        hexInputBox.AddChild(_hexInputLabel);
-        hexInputBox.AddChild(_hexInputEdit);
-
         bodyBox.AddChild(topSliderBox);
         bodyBox.AddChild(middleSliderBox);
         bodyBox.AddChild(bottomSliderBox);
         bodyBox.AddChild(_alphaSliderBox);
-        bodyBox.AddChild(hexInputBox);
 
         rootBox.AddChild(bodyBox);
 
@@ -312,7 +293,6 @@ public sealed partial class ColorSelectorSliders : Control
         _middleStyle.SetBaseColor(_colorData);
         _bottomStyle.SetBaseColor(_colorData);
         _colorDescriptionLabel.Text = ColorNaming.Describe(Color, _localization);
-        _hexInputEdit.Text = _currentColor.ToHex();
     }
 
     private void UpdateAllSliders()
@@ -355,22 +335,6 @@ public sealed partial class ColorSelectorSliders : Control
 
         UpdateSliderVisuals();
         UpdateSlider(order);
-    }
-
-    private void OnHexInputValueChanged(LineEdit.LineEditEventArgs args)
-    {
-        var currentAlpha = _currentColor.A;
-        _currentColor = Color.FromHex(args.Text, _currentColor);
-        // If alpha is not meant to be edited, don't allow hex codes to change it
-        if (!IsAlphaVisible)
-        {
-            _currentColor.A = currentAlpha;
-        }
-
-        _colorData = GetStrategy().ToColorData(_currentColor);
-        OnColorChanged?.Invoke(_currentColor);
-
-        UpdateAllSliders();
     }
 
     private enum ColorSliderOrder

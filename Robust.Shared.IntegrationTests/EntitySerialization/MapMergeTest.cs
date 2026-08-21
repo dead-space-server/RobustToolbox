@@ -35,6 +35,7 @@ internal sealed partial class MapMergeTest : RobustIntegrationTest
         var entMan = server.EntMan;
         var mapSys = server.System<SharedMapSystem>();
         var loader = server.System<MapLoaderSystem>();
+        var mapMan = server.ResolveDependency<IMapManager>();
         var tileMan = server.ResolveDependency<ITileDefinitionManager>();
 
         var mapPath = new ResPath($"{nameof(TestMapMerge)}_map.yml");
@@ -51,7 +52,7 @@ internal sealed partial class MapMergeTest : RobustIntegrationTest
         await server.WaitPost(() =>
         {
             var mapUid = mapSys.CreateMap(out mapId, runMapInit: false);
-            var gridEnt = mapSys.CreateGridEntity(mapId);
+            var gridEnt = mapMan.CreateGridEntity(mapId);
             mapSys.SetTile(gridEnt, Vector2i.Zero, new Tile(tDef.TileId));
             var entUid = entMan.SpawnEntity(null, new MapCoordinates(10, 10, mapId));
             map = Get(mapUid, entMan);

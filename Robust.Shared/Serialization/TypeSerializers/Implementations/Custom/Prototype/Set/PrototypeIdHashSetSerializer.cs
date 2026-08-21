@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Robust.Shared.IoC;
@@ -7,19 +6,27 @@ using Robust.Shared.Serialization.Manager;
 using Robust.Shared.Serialization.Markdown.Sequence;
 using Robust.Shared.Serialization.Markdown.Validation;
 using Robust.Shared.Serialization.Markdown.Value;
-using Robust.Shared.Serialization.TypeSerializers.Implementations.Generic;
 using Robust.Shared.Serialization.TypeSerializers.Interfaces;
 
 namespace Robust.Shared.Serialization.TypeSerializers.Implementations.Custom.Prototype.Set
 {
-    [Obsolete("Use ProtoId instead")]
-    public sealed class PrototypeIdHashSetSerializer<TPrototype> :
+    public sealed class AbstractPrototypeIdHashSetSerializer<TPrototype> : PrototypeIdHashSetSerializer<TPrototype>
+        where TPrototype : class, IPrototype, IInheritingPrototype
+    {
+        protected override PrototypeIdSerializer<TPrototype> PrototypeSerializer =>
+            new AbstractPrototypeIdSerializer<TPrototype>();
+    }
+
+    [Virtual]
+    public class PrototypeIdHashSetSerializer<TPrototype> :
         ITypeValidator<HashSet<string>, SequenceDataNode>,
         ITypeValidator<ImmutableHashSet<string>, SequenceDataNode>,
         ITypeValidator<ISet<string>, SequenceDataNode>,
         ITypeValidator<IReadOnlySet<string>, SequenceDataNode>
         where TPrototype : class, IPrototype
     {
+        protected virtual PrototypeIdSerializer<TPrototype> PrototypeSerializer => new();
+
         public ValidationNode Validate(ISerializationManager serializationManager, SequenceDataNode node, IDependencyCollection dependencies, ISerializationContext? context = null)
         {
             var list = new List<ValidationNode>();
@@ -32,7 +39,7 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations.Custom.Pro
                     continue;
                 }
 
-                list.Add(ProtoIdSerializer<TPrototype>.Validate(dependencies, value));
+                list.Add(PrototypeSerializer.Validate(serializationManager, value, dependencies, context));
             }
 
             return new ValidatedSequenceNode(list);

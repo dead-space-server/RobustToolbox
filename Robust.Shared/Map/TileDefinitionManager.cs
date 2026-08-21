@@ -47,7 +47,6 @@ namespace Robust.Shared.Map
             return GetVariantTile(tileDef, random);
         }
 
-        [Obsolete("Use method with IRobustRandom parameter")]
         public Tile GetVariantTile(string name, System.Random random)
         {
             var tileDef = this[name];
@@ -59,7 +58,6 @@ namespace Robust.Shared.Map
             return new Tile(tileDef.TileId, variant: random.NextByte(tileDef.Variants));
         }
 
-        [Obsolete("Use method with IRobustRandom parameter")]
         public Tile GetVariantTile(ITileDefinition tileDef, System.Random random)
         {
             return new Tile(tileDef.TileId, variant: random.NextByte(tileDef.Variants));

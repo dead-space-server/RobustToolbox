@@ -186,12 +186,12 @@ namespace Robust.Client.UserInterface.Controls
         {
             foreach (var button in _leftButtons)
             {
-                button.Orphan();
+                button.Dispose();
             }
             _leftButtons.Clear();
             foreach (var button in _rightButtons)
             {
-                button.Orphan();
+                button.Dispose();
             }
             _rightButtons.Clear();
         }

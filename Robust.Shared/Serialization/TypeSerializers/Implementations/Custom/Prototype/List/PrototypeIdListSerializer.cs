@@ -1,5 +1,4 @@
-using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Robust.Shared.IoC;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Serialization.Manager;
@@ -7,13 +6,19 @@ using Robust.Shared.Serialization.Markdown.Sequence;
 using Robust.Shared.Serialization.Markdown.Validation;
 using Robust.Shared.Serialization.Markdown.Value;
 using Robust.Shared.Serialization.TypeSerializers.Interfaces;
-using Robust.Shared.Serialization.TypeSerializers.Implementations.Generic;
 
 namespace Robust.Shared.Serialization.TypeSerializers.Implementations.Custom.Prototype.List
 {
-    [Obsolete("Use ProtoId instead")]
-    public sealed partial class PrototypeIdListSerializer<T> : ITypeValidator<List<string>, SequenceDataNode> where T : class, IPrototype
+    public sealed class AbstractPrototypeIdListSerializer<T> : PrototypeIdListSerializer<T> where T : class, IPrototype, IInheritingPrototype
     {
+        protected override PrototypeIdSerializer<T> PrototypeSerializer => new AbstractPrototypeIdSerializer<T>();
+    }
+
+    [Virtual]
+    public partial class PrototypeIdListSerializer<T> : ITypeValidator<List<string>, SequenceDataNode> where T : class, IPrototype
+    {
+        protected virtual PrototypeIdSerializer<T> PrototypeSerializer => new();
+
         private ValidationNode ValidateInternal(
             ISerializationManager serializationManager,
             SequenceDataNode node,
@@ -30,7 +35,7 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations.Custom.Pro
                     continue;
                 }
 
-                list.Add(ProtoIdSerializer<T>.Validate(dependencies, value));
+                list.Add(PrototypeSerializer.Validate(serializationManager, value, dependencies, context));
             }
 
             return new ValidatedSequenceNode(list);

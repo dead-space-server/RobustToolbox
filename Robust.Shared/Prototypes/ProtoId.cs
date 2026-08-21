@@ -1,5 +1,4 @@
 ﻿using System;
-using Robust.Shared.Serialization.Manager.Attributes;
 using Robust.Shared.Serialization.TypeSerializers.Implementations.Generic;
 using Robust.Shared.Toolshed.TypeParsers;
 
@@ -15,7 +14,6 @@ namespace Robust.Shared.Prototypes;
 /// </remarks>
 /// <remarks><seealso cref="EntProtoId"/> for an <see cref="EntityPrototype"/> alias.</remarks>
 [Serializable]
-[CopyByRef]
 [PreferOtherType(typeof(EntityPrototype), typeof(EntProtoId))]
 public readonly record struct ProtoId<T>(string Id) :
     IEquatable<string>,

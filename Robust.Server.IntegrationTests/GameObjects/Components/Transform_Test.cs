@@ -19,6 +19,7 @@ namespace Robust.Server.IntegrationTests.GameObjects.Components
         public override UnitTestProject Project => UnitTestProject.Server;
 
         private IEntityManager EntityManager = default!;
+        private IMapManager MapManager = default!;
         private SharedTransformSystem XformSystem => EntityManager.System<SharedTransformSystem>();
 
         const string Prototypes = @"
@@ -46,6 +47,7 @@ namespace Robust.Server.IntegrationTests.GameObjects.Components
             IoCManager.Resolve<IComponentFactory>().GenerateNetIds();
 
             EntityManager = IoCManager.Resolve<IEntityManager>();
+            MapManager = IoCManager.Resolve<IMapManager>();
 
             IoCManager.Resolve<ISerializationManager>().Initialize();
             var manager = IoCManager.Resolve<IPrototypeManager>();
@@ -58,8 +60,8 @@ namespace Robust.Server.IntegrationTests.GameObjects.Components
             mapSys.CreateMap(out MapA);
             mapSys.CreateMap(out MapB);
 
-            GridA = mapSys.CreateGridEntity(MapA);
-            GridB = mapSys.CreateGridEntity(MapB);
+            GridA = MapManager.CreateGridEntity(MapA);
+            GridB = MapManager.CreateGridEntity(MapB);
 
             //NOTE: The grids have not moved, so we can assert worldpos == localpos for the test
         }
@@ -190,7 +192,7 @@ namespace Robust.Server.IntegrationTests.GameObjects.Components
             XformSystem.SetParent(child, childTrans, parent, parentXform: parentTrans);
 
             //Act
-            XformSystem.SetLocalRotationNoLerp(parent, new Angle(MathHelper.Pi / 2), parentTrans);
+            parentTrans.LocalRotation = new Angle(MathHelper.Pi / 2);
 
             //Assert
             var result = XformSystem.GetWorldPosition(childTrans);
@@ -217,7 +219,7 @@ namespace Robust.Server.IntegrationTests.GameObjects.Components
             XformSystem.SetParent(child, childTrans, parent, parentXform: parentTrans);
 
             //Act
-            XformSystem.SetLocalRotationNoLerp(parent, new Angle(MathHelper.Pi / 2), parentTrans);
+            parentTrans.LocalRotation = new Angle(MathHelper.Pi / 2);
 
             //Assert
             var result = XformSystem.GetWorldPosition(childTrans);
@@ -255,7 +257,7 @@ namespace Robust.Server.IntegrationTests.GameObjects.Components
             XformSystem.SetParent(node4, node4Trans, node3, parentXform: node3Trans);
 
             //Act
-            XformSystem.SetLocalRotationNoLerp(node1, new Angle(MathHelper.Pi / 2), node1Trans);
+            node1Trans.LocalRotation = new Angle(MathHelper.Pi / 2);
 
             //Assert
             var result = XformSystem.GetWorldPosition(node4Trans);
@@ -337,12 +339,11 @@ namespace Robust.Server.IntegrationTests.GameObjects.Components
             // Act
             var oldWpos = XformSystem.GetWorldPosition(node3Trans);
 
-            var angle180 = new Angle(MathHelper.Pi);
             for (var i = 0; i < 100; i++)
             {
-                XformSystem.SetLocalRotationNoLerp(node1, node1Trans.LocalRotation + angle180, node1Trans);
-                XformSystem.SetLocalRotationNoLerp(node2, node2Trans.LocalRotation + angle180, node2Trans);
-                XformSystem.SetLocalRotationNoLerp(node3, node3Trans.LocalRotation + angle180, node3Trans);
+                node1Trans.LocalRotation += new Angle(MathHelper.Pi);
+                node2Trans.LocalRotation += new Angle(MathHelper.Pi);
+                node3Trans.LocalRotation += new Angle(MathHelper.Pi);
             }
 
             var newWpos = XformSystem.GetWorldPosition(node3Trans);
@@ -387,7 +388,7 @@ namespace Robust.Server.IntegrationTests.GameObjects.Components
             XformSystem.SetParent(node4, node4Trans, node3, parentXform: node3Trans);
 
             //Act
-            XformSystem.SetLocalRotation(node1, new Angle(MathHelper.Pi / 6.37), node1Trans);
+            node1Trans.LocalRotation = new Angle(MathHelper.Pi / 6.37);
             XformSystem.SetWorldPosition(node1, new Vector2(1, 1));
 
             var worldMat = XformSystem.GetWorldMatrix(node4Trans);
@@ -426,31 +427,16 @@ namespace Robust.Server.IntegrationTests.GameObjects.Components
             XformSystem.SetParent(node2, node2Trans, node1, parentXform: node1Trans);
             XformSystem.SetParent(node3, node3Trans, node2, parentXform: node2Trans);
 
-            XformSystem.SetLocalRotationNoLerp(node1, Angle.Zero, node1Trans);
-            XformSystem.SetLocalRotationNoLerp(node2, Angle.FromDegrees(45), node2Trans);
-            XformSystem.SetLocalRotationNoLerp(node3, Angle.FromDegrees(45), node3Trans);
+            node1Trans.LocalRotation = Angle.FromDegrees(0);
+            node2Trans.LocalRotation = Angle.FromDegrees(45);
+            node3Trans.LocalRotation = Angle.FromDegrees(45);
 
             // Act
-            XformSystem.SetLocalRotationNoLerp(node1, Angle.FromDegrees(135), node1Trans);
+            node1Trans.LocalRotation = Angle.FromDegrees(135);
 
             // Assert (135 + 45 + 45 = 225)
             var result = XformSystem.GetWorldRotation(node3Trans);
             Assert.That(result, new ApproxEqualityConstraint(Angle.FromDegrees(225)));
-        }
-
-        [Test]
-        public void LocalRotationNormalizesTest()
-        {
-            var entity = EntityManager.SpawnEntity(null, InitialPos);
-            var transform = EntityManager.GetComponent<TransformComponent>(entity);
-
-            XformSystem.SetLocalRotation(entity, Angle.FromDegrees(90), transform);
-
-            Assert.That(transform.LocalRotation, NUnit.Framework.Is.EqualTo(Angle.FromDegrees(90)));
-
-            XformSystem.SetWorldRotation(transform, Angle.FromDegrees(810));
-
-            Assert.That(transform.LocalRotation, NUnit.Framework.Is.EqualTo(Angle.FromDegrees(90)));
         }
 
         /// <summary>

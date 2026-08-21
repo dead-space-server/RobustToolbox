@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
-using System.Diagnostics.Contracts;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -19,174 +17,83 @@ namespace Robust.Shared.Maths
         /// <summary>
         ///     The X coordinate of the left edge of the box.
         /// </summary>
-        [FieldOffset(sizeof(float) * 0)] internal float _left;
+        [FieldOffset(sizeof(float) * 0)] public float Left;
 
         /// <summary>
         ///     The Y coordinate of the top edge of the box.
         /// </summary>
-        [FieldOffset(sizeof(float) * 1)] internal float _top;
+        [FieldOffset(sizeof(float) * 1)] public float Top;
 
         /// <summary>
         ///     The X coordinate of the right edge of the box.
         /// </summary>
-        [FieldOffset(sizeof(float) * 2)] internal float _right;
+        [FieldOffset(sizeof(float) * 2)] public float Right;
 
         /// <summary>
         ///     The Y coordinate of the bottom of the box.
         /// </summary>
-        [FieldOffset(sizeof(float) * 3)] internal float _bottom;
+        [FieldOffset(sizeof(float) * 3)] public float Bottom;
 
-        [FieldOffset(sizeof(float) * 0)] internal Vector2 _topLeft;
-        [FieldOffset(sizeof(float) * 2)] internal Vector2 _bottomRight;
-
-        /// <summary>
-        ///     The X coordinate of the left edge of the box.
-        /// </summary>
-        public float Left
-        {
-            readonly get => _left;
-            set
-            {
-                Debug.Assert(!(value > _right), "Left cannot be greater than Right.");
-                _left = MathF.Min(value, _right);
-            }
-        }
-
-        /// <summary>
-        ///     The Y coordinate of the top edge of the box.
-        /// </summary>
-        public float Top
-        {
-            readonly get => _top;
-            set
-            {
-                Debug.Assert(!(value > _bottom), "Top cannot be greater than Bottom.");
-                _top = MathF.Min(value, _bottom);
-            }
-        }
-
-        /// <summary>
-        ///     The X coordinate of the right edge of the box.
-        /// </summary>
-        public float Right
-        {
-            readonly get => _right;
-            set
-            {
-                Debug.Assert(!(value < _left), "Right cannot be less than Left.");
-                _right = MathF.Max(value, _left);
-            }
-        }
-
-        /// <summary>
-        ///     The Y coordinate of the bottom of the box.
-        /// </summary>
-        public float Bottom
-        {
-            readonly get => _bottom;
-            set
-            {
-                Debug.Assert(!(value < _top), "Bottom cannot be less than Top.");
-                _bottom = MathF.Max(value, _top);
-            }
-        }
-
-        public Vector2 TopLeft
-        {
-            readonly get => _topLeft;
-            set
-            {
-                Debug.Assert(!(value.X > _right), "TopLeft.X cannot be greater than Right.");
-                Debug.Assert(!(value.Y > _bottom), "TopLeft.Y cannot be greater than Bottom.");
-                _topLeft = Vector2.Min(value, _bottomRight);
-            }
-        }
-
-        public Vector2 BottomRight
-        {
-            readonly get => _bottomRight;
-            set
-            {
-                Debug.Assert(!(value.X < _left), "BottomRight.X cannot be less than Left.");
-                Debug.Assert(!(value.Y < _top), "BottomRight.Y cannot be less than Top.");
-                _bottomRight = Vector2.Max(value, _topLeft);
-            }
-        }
+        [FieldOffset(sizeof(float) * 0)] public Vector2 TopLeft;
+        [FieldOffset(sizeof(float) * 2)] public Vector2 BottomRight;
 
         public readonly Vector2 TopRight => new(Right, Top);
         public readonly Vector2 BottomLeft => new(Left, Bottom);
-        public readonly float Width => Right - Left;
-        public readonly float Height => Bottom - Top;
+        public readonly float Width => MathF.Abs(Right - Left);
+        public readonly float Height => MathF.Abs(Top - Bottom);
         public readonly Vector2 Size => new(Width, Height);
-        public readonly Vector2 Center => new Vector2(_left + _right, _top + _bottom) / 2f;
-
-        private static void Validate(float left, float top, float right, float bottom)
-        {
-            Debug.Assert(!(left > right), "Left cannot be greater than Right.");
-            Debug.Assert(!(top > bottom), "Top cannot be greater than Bottom.");
-        }
+        public readonly Vector2 Center => TopLeft + Size / 2;
 
         public UIBox2(Vector2 leftTop, Vector2 rightBottom)
         {
             Unsafe.SkipInit(out this);
 
-            Validate(leftTop.X, leftTop.Y, rightBottom.X, rightBottom.Y);
-
-            _topLeft = leftTop;
-            _bottomRight = Vector2.Max(leftTop, rightBottom);
+            TopLeft = leftTop;
+            BottomRight = rightBottom;
         }
 
         public UIBox2(float left, float top, float right, float bottom)
         {
             Unsafe.SkipInit(out this);
 
-            Validate(left, top, right, bottom);
-
-            _left = left;
-            _right = MathF.Max(left, right);
-            _top = top;
-            _bottom = MathF.Max(top, bottom);
+            Left = left;
+            Right = right;
+            Top = top;
+            Bottom = bottom;
         }
 
-        [Pure]
         public static UIBox2 FromDimensions(float left, float top, float width, float height)
         {
             return new(left, top, left + width, top + height);
         }
 
-        [Pure]
         public static UIBox2 FromDimensions(Vector2 leftTopPosition, Vector2 size)
         {
             return FromDimensions(leftTopPosition.X, leftTopPosition.Y, size.X, size.Y);
         }
 
-        [Pure]
         public readonly bool Intersects(UIBox2 other)
         {
             return other.Bottom >= this.Top && other.Top <= this.Bottom && other.Right >= this.Left &&
                    other.Left <= this.Right;
         }
 
-        [Pure]
         public readonly bool IsEmpty()
         {
             return MathHelper.CloseToPercent(Width, 0.0f) && MathHelper.CloseToPercent(Height, 0.0f);
         }
 
-        [Pure]
         public readonly bool Encloses(UIBox2 inner)
         {
             return this.Left < inner.Left && this.Bottom > inner.Bottom && this.Right > inner.Right &&
                    this.Top < inner.Top;
         }
 
-        [Pure]
         public readonly bool Contains(float x, float y)
         {
             return Contains(new Vector2(x, y));
         }
 
-        [Pure]
         public readonly bool Contains(Vector2 point, bool closedRegion = true)
         {
             var xOk = closedRegion
@@ -205,7 +112,6 @@ namespace Robust.Shared.Maths
         /// </summary>
         /// <param name="scalar">Value to scale the box by.</param>
         /// <returns>Scaled box.</returns>
-        [Pure]
         public readonly UIBox2 Scale(float scalar)
         {
             if (scalar < 0)
@@ -221,7 +127,6 @@ namespace Robust.Shared.Maths
         }
 
         /// <summary>Returns a UIBox2 translated by the given amount.</summary>
-        [Pure]
         public readonly UIBox2 Translated(Vector2 point)
         {
             return new(Left + point.X, Top + point.Y, Right + point.X, Bottom + point.Y);

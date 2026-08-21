@@ -18,9 +18,9 @@ namespace Robust.Shared.ContentPack
     /// <summary>
     ///     Class for managing the loading of assemblies into the engine.
     /// </summary>
-    internal sealed partial class ModLoader : BaseModLoader, IModLoaderInternal, IDisposable
+    internal sealed class ModLoader : BaseModLoader, IModLoaderInternal, IDisposable
     {
-        [Dependency] private IResourceManagerInternal _res = default!;
+        [Dependency] private readonly IResourceManagerInternal _res = default!;
 
         // List of extra assemblies side-loaded from the /Assemblies/ mounted path.
         private readonly List<Assembly> _sideModules = new();

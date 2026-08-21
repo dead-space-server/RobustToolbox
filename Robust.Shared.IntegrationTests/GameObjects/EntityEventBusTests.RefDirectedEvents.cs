@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using Robust.Shared.GameObjects;
+using Robust.Shared.IoC;
 using Robust.Shared.Map;
 using Robust.Shared.Reflection;
 using Robust.UnitTesting.Server;
@@ -19,15 +20,13 @@ namespace Robust.UnitTesting.Shared.GameObjects
                 .RegisterEntitySystems(factory => factory.LoadExtraSystemType<SubscribeCompRefDirectedEventSystem>())
                 .InitializeInstance();
 
-            var entMan = simulation.Resolve<IEntityManager>();
-            var mapSys = entMan.System<SharedMapSystem>();
-            mapSys.CreateMap(out var map);
-            var entity = entMan.Spawn(null, new MapCoordinates(0, 0, map));
-            entMan.AddComponent<DummyComponent>(entity);
+            var map = simulation.CreateMap().MapId;
+            var entity = simulation.SpawnEntity(null, new MapCoordinates(0, 0, map));
+            IoCManager.Resolve<IEntityManager>().AddComponent<DummyComponent>(entity);
 
             // Act.
             var testEvent = new TestStructEvent {TestNumber = 5};
-            var eventBus = entMan.EventBus;
+            var eventBus = simulation.Resolve<IEntityManager>().EventBus;
             eventBus.RaiseLocalEvent(entity, ref testEvent, true);
 
             // Check that the entity system changed the value correctly
@@ -85,17 +84,15 @@ namespace Robust.UnitTesting.Shared.GameObjects
                 })
                 .InitializeInstance();
 
-            var entMan = simulation.Resolve<IEntityManager>();
-            var mapSys = entMan.System<SharedMapSystem>();
-            mapSys.CreateMap(out var map);
-            var entity = entMan.Spawn(null, new MapCoordinates(0, 0, map));
-            entMan.AddComponent<OrderAComponent>(entity);
-            entMan.AddComponent<OrderBComponent>(entity);
-            entMan.AddComponent<OrderCComponent>(entity);
+            var map = simulation.CreateMap().MapId;
+            var entity = simulation.SpawnEntity(null, new MapCoordinates(0, 0, map));
+            IoCManager.Resolve<IEntityManager>().AddComponent<OrderAComponent>(entity);
+            IoCManager.Resolve<IEntityManager>().AddComponent<OrderBComponent>(entity);
+            IoCManager.Resolve<IEntityManager>().AddComponent<OrderCComponent>(entity);
 
             // Act.
             var testEvent = new TestStructEvent {TestNumber = 5};
-            var eventBus = entMan.EventBus;
+            var eventBus = simulation.Resolve<IEntityManager>().EventBus;
             eventBus.RaiseLocalEvent(entity, ref testEvent, true);
 
             // Check that the entity systems changed the value correctly
@@ -112,7 +109,7 @@ namespace Robust.UnitTesting.Shared.GameObjects
                 SubscribeLocalEvent<OrderAComponent, TestStructEvent>(OnA, new[]{typeof(OrderBSystem)}, new[]{typeof(OrderCSystem)});
             }
 
-            private static void OnA(EntityUid uid, OrderAComponent component, ref TestStructEvent args)
+            private void OnA(EntityUid uid, OrderAComponent component, ref TestStructEvent args)
             {
                 // Second handler being ran.
                 Assert.That(args.TestNumber, Is.EqualTo(0));
@@ -130,7 +127,7 @@ namespace Robust.UnitTesting.Shared.GameObjects
                 SubscribeLocalEvent<OrderBComponent, TestStructEvent>(OnB, null, new []{typeof(OrderASystem)});
             }
 
-            private static void OnB(EntityUid uid, OrderBComponent component, ref TestStructEvent args)
+            private void OnB(EntityUid uid, OrderBComponent component, ref TestStructEvent args)
             {
                 // Last handler being ran.
                 Assert.That(args.TestNumber, Is.EqualTo(10));
@@ -148,7 +145,7 @@ namespace Robust.UnitTesting.Shared.GameObjects
                 SubscribeLocalEvent<OrderCComponent, TestStructEvent>(OnC);
             }
 
-            private static void OnC(EntityUid uid, OrderCComponent component, ref TestStructEvent args)
+            private void OnC(EntityUid uid, OrderCComponent component, ref TestStructEvent args)
             {
                 // First handler being ran.
                 Assert.That(args.TestNumber, Is.EqualTo(5));
@@ -156,7 +153,9 @@ namespace Robust.UnitTesting.Shared.GameObjects
             }
         }
 
-        private sealed partial class DummyTwoComponent : Component;
+        private sealed partial class DummyTwoComponent : Component
+        {
+        }
 
         [ByRefEvent]
         private struct TestStructEvent

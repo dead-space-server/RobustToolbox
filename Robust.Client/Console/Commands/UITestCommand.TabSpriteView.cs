@@ -21,8 +21,6 @@ internal sealed partial class UITestControl
 
         private readonly IEntityManager _entMan;
         private readonly IGameTiming _timing;
-        private readonly SpriteSystem _sprite;
-        private readonly SharedTransformSystem _xform;
         private readonly BoxContainer _box;
 
         private record Entry(EntityUid Uid, SpriteComponent Sprite, TransformComponent Transform,
@@ -35,8 +33,6 @@ internal sealed partial class UITestControl
         public TabSpriteView()
         {
             IoCManager.Resolve(ref _entMan, ref _timing);
-            _sprite = _entMan.System<SpriteSystem>();
-            _xform = _entMan.System<SharedTransformSystem>();
             SetValue(TabContainer.TabTitleProperty, nameof(SpriteView));
             _box = new BoxContainer
             {
@@ -182,14 +178,14 @@ internal sealed partial class UITestControl
 
             entry = AddEntry("Local Rotation", (e, time) =>
             {
-                _xform.SetLocalRotation(e.Uid, Angle.FromDegrees(time * _degreesPerSecond), e.Transform);
+                e.Transform.LocalRotation = Angle.FromDegrees(time * _degreesPerSecond);
                 e.View.InvalidateMeasure();
             });
             added.Add(entry);
 
             entry = AddEntry("Local Rotation (NoRot)", (e, time) =>
             {
-                _xform.SetLocalRotation(e.Uid, Angle.FromDegrees(time * _degreesPerSecond), e.Transform);
+                e.Transform.LocalRotation = Angle.FromDegrees(time * _degreesPerSecond);
                 e.View.InvalidateMeasure();
             });
             entry.Sprite.NoRotation = true;
@@ -197,7 +193,7 @@ internal sealed partial class UITestControl
 
             entry = AddEntry("Offset", (e, time) =>
             {
-                _sprite.SetOffset((e.Uid, e.Sprite), new Vector2(MathF.Sin((float) Angle.FromDegrees(time * _degreesPerSecond)), 0));
+                e.Sprite.Offset = new Vector2(MathF.Sin((float) Angle.FromDegrees(time * _degreesPerSecond)), 0);
                 e.View.InvalidateMeasure();
             });
             added.Add(entry);
@@ -205,24 +201,24 @@ internal sealed partial class UITestControl
             entry = AddEntry("Scaled", (e, time) =>
             {
                 var theta = (float) Angle.FromDegrees(_degreesPerSecond * time).Theta;
-                _sprite.SetScale((e.Uid, e.Sprite), Vector2.One + new Vector2(0.5f * MathF.Sin(theta), 0.5f * MathF.Cos(theta)));
+                e.Sprite.Scale = Vector2.One + new Vector2(0.5f * MathF.Sin(theta), 0.5f * MathF.Cos(theta));
                 e.View.InvalidateMeasure();
             });
             added.Add(entry);
 
             entry = AddEntry("Sprite Rotation", (e, time) =>
             {
-                _sprite.SetRotation((e.Uid, e.Sprite), Angle.FromDegrees(time * _degreesPerSecond));
+                e.Sprite.Rotation = Angle.FromDegrees(time * _degreesPerSecond);
             });
             added.Add(entry);
 
             entry = AddEntry("Combination", (e, time) =>
             {
                 var theta = (float) Angle.FromDegrees(_degreesPerSecond * time * 2).Theta;
-                _sprite.SetScale((e.Uid, e.Sprite), Vector2.One + new Vector2(0.5f * MathF.Sin(theta), 0.5f * MathF.Cos(theta)));
-                _sprite.SetOffset((e.Uid, e.Sprite), new(MathF.Sin((float) Angle.FromDegrees(time * _degreesPerSecond)), 0));
-                _sprite.SetRotation((e.Uid, e.Sprite), Angle.FromDegrees(0.5 * time * _degreesPerSecond));
-                _xform.SetLocalRotationNoLerp(e.Uid, Angle.FromDegrees(0.25 * time * _degreesPerSecond), e.Transform);
+                e.Sprite.Scale = Vector2.One + new Vector2(0.5f * MathF.Sin(theta), 0.5f * MathF.Cos(theta));
+                e.Sprite.Offset = new(MathF.Sin((float) Angle.FromDegrees(time * _degreesPerSecond)), 0);
+                e.Sprite.Rotation = Angle.FromDegrees(0.5 * time * _degreesPerSecond);
+                e.Transform.LocalRotation = Angle.FromDegrees(0.25 * time * _degreesPerSecond);
                 e.View.InvalidateMeasure();
             });
             added.Add(entry);

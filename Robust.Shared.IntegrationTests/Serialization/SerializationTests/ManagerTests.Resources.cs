@@ -20,15 +20,12 @@ internal sealed partial class ManagerTests : ISerializationContext
     private static ValueDataNode SerializerRanDataNode => new ("SerializerRan");
     private static ValueDataNode SerializerRanCustomDataNode => new ("SerializerRanCustom");
 
-    public SerializationManager.SerializerProvider SerializerProvider { get; private set; }
+    public SerializationManager.SerializerProvider SerializerProvider { get; } = new();
     public bool WritingReadingPrototypes { get; }
 
     [OneTimeSetUp]
     public void SetupSerializerProvider()
     {
-        var ser = IoCManager.Resolve<ISerializationManager>();
-        SerializerProvider = new(ser);
-
         SerializerProvider.RegisterSerializer<CustomTypeSerializerStruct>();
         SerializerProvider.RegisterSerializer<CustomTypeSerializerClass>();
     }

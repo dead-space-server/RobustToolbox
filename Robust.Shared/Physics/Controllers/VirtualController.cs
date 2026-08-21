@@ -6,21 +6,17 @@ using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
 using Robust.Shared.Physics.Dynamics;
 using Robust.Shared.Physics.Systems;
-using Robust.Shared.Profiling;
 using Robust.Shared.Timing;
 
 namespace Robust.Shared.Physics.Controllers
 {
     [MeansImplicitUse]
-    public abstract partial class VirtualController : EntitySystem
+    public abstract class VirtualController : EntitySystem
     {
-        [Dependency] protected SharedPhysicsSystem PhysicsSystem = default!;
-        [Dependency] protected SharedTransformSystem TransformSystem = default!;
-        [Dependency] private ProfManager _prof = default!;
+        [Dependency] protected readonly SharedPhysicsSystem PhysicsSystem = default!;
+        [Dependency] protected readonly SharedTransformSystem TransformSystem = default!;
 
         private static readonly Stopwatch Stopwatch = new();
-
-        private string _zoneName = string.Empty;
 
         public Histogram.Child BeforeMonitor = default!;
         public Histogram.Child AfterMonitor = default!;
@@ -33,7 +29,6 @@ namespace Robust.Shared.Physics.Controllers
 
             BeforeMonitor = SharedPhysicsSystem.TickUsageControllerBeforeSolveHistogram.WithLabels(GetType().Name);
             AfterMonitor = SharedPhysicsSystem.TickUsageControllerAfterSolveHistogram.WithLabels(GetType().Name);
-            _zoneName = GetType().Name;
 
             var updatesBefore = UpdatesBefore.ToArray();
             var updatesAfter = UpdatesAfter.ToArray();
@@ -47,10 +42,7 @@ namespace Robust.Shared.Physics.Controllers
             if(PhysicsSystem.MetricsEnabled)
                 Stopwatch.Restart();
 
-            using (_prof.Group(_zoneName))
-            {
-                UpdateBeforeSolve(ev.Prediction, ev.DeltaTime);
-            }
+            UpdateBeforeSolve(ev.Prediction, ev.DeltaTime);
 
             if(PhysicsSystem.MetricsEnabled)
                 BeforeMonitor.Observe(Stopwatch.Elapsed.TotalSeconds);
@@ -61,10 +53,7 @@ namespace Robust.Shared.Physics.Controllers
             if(PhysicsSystem.MetricsEnabled)
                 Stopwatch.Restart();
 
-            using (_prof.Group(_zoneName))
-            {
-                UpdateAfterSolve(ev.Prediction, ev.DeltaTime);
-            }
+            UpdateAfterSolve(ev.Prediction, ev.DeltaTime);
 
             if(PhysicsSystem.MetricsEnabled)
                 AfterMonitor.Observe(Stopwatch.Elapsed.TotalSeconds);

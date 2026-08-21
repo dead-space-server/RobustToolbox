@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Robust.Shared.GameObjects;
-using Robust.Shared.Map.Components;
 using Robust.Shared.Maths;
 
 namespace Robust.Shared.Map.Events;
@@ -12,4 +11,11 @@ namespace Robust.Shared.Map.Events;
 /// Really this exists to get around test dependency creeping.
 /// </remarks>
 [ByRefEvent]
-internal readonly record struct RegenerateGridBoundsEvent(EntityUid Entity, Dictionary<MapChunk, List<Box2i>> ChunkRectangles, List<MapChunk> RemovedChunks, MapGridComponent? Grid = null);
+internal readonly record struct RegenerateGridBoundsEvent(EntityUid Entity, Dictionary<MapChunk, List<Box2i>> ChunkRectangles, List<MapChunk> RemovedChunks)
+{
+    public readonly EntityUid Entity = Entity;
+
+    public readonly Dictionary<MapChunk, List<Box2i>> ChunkRectangles = ChunkRectangles;
+
+    public readonly List<MapChunk> RemovedChunks = RemovedChunks;
+}

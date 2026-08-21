@@ -5,11 +5,11 @@ using Robust.Shared.Log;
 
 namespace Robust.Shared.Console.Commands;
 
-internal sealed partial class LogSetLevelCommand : LocalizedCommands
+internal sealed class LogSetLevelCommand : LocalizedCommands
 {
     private const string LevelNull = "null";
 
-    [Dependency] private ILogManager _logManager = default!;
+    [Dependency] private readonly ILogManager _logManager = default!;
 
     public override string Command => "loglevel";
     public override void Execute(IConsoleShell shell, string argStr, string[] args)
@@ -60,9 +60,9 @@ internal sealed partial class LogSetLevelCommand : LocalizedCommands
     }
 }
 
-internal sealed partial class TestLog : LocalizedCommands
+internal sealed class TestLog : LocalizedCommands
 {
-    [Dependency] private ILogManager _logManager = default!;
+    [Dependency] private readonly ILogManager _logManager = default!;
 
     public override string Command => "testlog";
 

@@ -14,10 +14,8 @@ using Robust.Shared.Utility;
 namespace Robust.Shared.Serialization.TypeSerializers.Implementations;
 
 [TypeSerializer]
-public sealed partial class ResPathSerializer : ITypeSerializer<ResPath, ValueDataNode>, ITypeCopyCreator<ResPath>
+public sealed class ResPathSerializer : ITypeSerializer<ResPath, ValueDataNode>, ITypeCopyCreator<ResPath>
 {
-    [Dependency] private IResourceManager _resMan = default!;
-
     public ValidationNode Validate(ISerializationManager serializationManager, ValueDataNode node,
         IDependencyCollection dependencies, ISerializationContext? context = null)
     {
@@ -37,15 +35,16 @@ public sealed partial class ResPathSerializer : ITypeSerializer<ResPath, ValueDa
 
         try
         {
+            var resourceManager = dependencies.Resolve<IResourceManager>();
             if (node.Value.EndsWith(ResPath.Separator))
             {
-                if (_resMan.ContentGetDirectoryEntries(path).Any())
+                if (resourceManager.ContentGetDirectoryEntries(path).Any())
                     return new ValidatedValueNode(node);
 
                 return new ErrorNode(node, $"Folder not found. ({path})");
             }
 
-            if (_resMan.ContentFileExists(path))
+            if (resourceManager.ContentFileExists(path))
                 return new ValidatedValueNode(node);
 
             return new ErrorNode(node, $"File not found. ({path})");

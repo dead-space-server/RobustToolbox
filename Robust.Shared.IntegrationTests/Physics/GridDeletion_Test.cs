@@ -27,8 +27,8 @@ internal sealed class GridDeletion_Test : RobustIntegrationTest
         await server.WaitIdleAsync();
 
         var entManager = server.ResolveDependency<IEntityManager>();
-        var mapSystem = entManager.System<SharedMapSystem>();
-        var physSystem = entManager.System<SharedPhysicsSystem>();
+        var mapManager = server.ResolveDependency<IMapManager>();
+        var physSystem = server.ResolveDependency<IEntitySystemManager>().GetEntitySystem<SharedPhysicsSystem>();
 
 
         PhysicsComponent physics = default!;
@@ -38,24 +38,24 @@ internal sealed class GridDeletion_Test : RobustIntegrationTest
         await server.WaitAssertion(() =>
         {
             entManager.System<SharedMapSystem>().CreateMap(out mapId);
-            grid = mapSystem.CreateGridEntity(mapId);
+            grid = mapManager.CreateGridEntity(mapId);
 
             physics = entManager.GetComponent<PhysicsComponent>(grid);
             physSystem.SetBodyType(grid, BodyType.Dynamic, body: physics);
             physSystem.SetLinearVelocity(grid, new Vector2(50f, 0f), body: physics);
-            Assert.That(physics.LinearVelocity.Length(), NUnit.Framework.Is.GreaterThan(0f));
+            Assert.That(physics.LinearVelocity.Length, NUnit.Framework.Is.GreaterThan(0f));
         });
 
         await server.WaitRunTicks(1);
 
         await server.WaitAssertion(() =>
         {
-            Assert.That(physics.LinearVelocity.Length(), NUnit.Framework.Is.GreaterThan(0f));
+            Assert.That(physics.LinearVelocity.Length, NUnit.Framework.Is.GreaterThan(0f));
             entManager.DeleteEntity(grid);
 
             List<Entity<MapGridComponent>> grids = [];
             // So if gridtree is fucky then this SHOULD throw.
-            mapSystem.FindGridsIntersecting(mapId,
+            mapManager.FindGridsIntersecting(mapId,
                          new Box2(new Vector2(float.MinValue, float.MinValue),
                              new Vector2(float.MaxValue, float.MaxValue)), ref grids);
         });

@@ -10,9 +10,9 @@ using Robust.Shared.Utility;
 
 namespace Robust.Client.GameObjects
 {
-    public sealed partial class ShowSpriteBBCommand : LocalizedEntityCommands
+    public sealed class ShowSpriteBBCommand : LocalizedEntityCommands
     {
-        [Dependency] private SpriteBoundsSystem _system = default!;
+        [Dependency] private readonly SpriteBoundsSystem _system = default!;
 
         public override string Command => "showspritebb";
 
@@ -22,9 +22,9 @@ namespace Robust.Client.GameObjects
         }
     }
 
-    public sealed partial class SpriteBoundsSystem : EntitySystem
+    public sealed class SpriteBoundsSystem : EntitySystem
     {
-        [Dependency] private IOverlayManager _overlayManager = default!;
+        [Dependency] private readonly IOverlayManager _overlayManager = default!;
 
         private SpriteBoundsOverlay? _overlay;
 

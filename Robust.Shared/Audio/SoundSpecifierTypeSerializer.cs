@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using Robust.Shared.IoC;
 using Robust.Shared.Serialization;
 using Robust.Shared.Serialization.Manager;
@@ -28,7 +27,6 @@ public sealed class SoundSpecifierTypeSerializer :
         if (hasCollection)
             return typeof(SoundCollectionSpecifier);
 
-        // See Read below if you are adding new types
         return typeof(SoundPathSpecifier);
     }
 
@@ -37,15 +35,7 @@ public sealed class SoundSpecifierTypeSerializer :
         ISerializationManager.InstantiationDelegate<SoundSpecifier>? instanceProvider = null)
     {
         var type = GetType(node);
-
-        if (type == typeof(SoundPathSpecifier))
-            return serializationManager.Read<SoundPathSpecifier>(node, hookCtx, context, notNullableOverride: true);
-
-        if (type == typeof(SoundCollectionSpecifier))
-            return serializationManager.Read<SoundCollectionSpecifier>(node, hookCtx, context, notNullableOverride: true);
-
-        // See GetType above if you are adding new types
-        throw new NotImplementedException();
+        return (SoundSpecifier)serializationManager.Read(type, node, hookCtx, context)!;
     }
 
     public SoundSpecifier Read(ISerializationManager serializationManager, ValueDataNode node,

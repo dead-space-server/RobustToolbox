@@ -1,20 +1,21 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using Robust.Shared.IoC;
 using Robust.Shared.Log;
+using Robust.Shared.Serialization;
 using Robust.Shared.Utility;
 using Robust.Shared.ViewVariables;
 
 namespace Robust.Shared.Reflection
 {
-    public abstract partial class ReflectionManager : IReflectionManager
+    public abstract class ReflectionManager : IReflectionManager
     {
-        [Dependency] private ILogManager _logMan = default!;
+        [Dependency] private readonly ILogManager _logMan = default!;
 
         /// <summary>
         /// Enumerable over prefixes that are added to the type provided to <see cref="GetType(string)"/>
@@ -31,30 +32,22 @@ namespace Robust.Shared.Reflection
 
         [ViewVariables] public IReadOnlyList<Assembly> Assemblies => assemblies;
 
-        private readonly ConcurrentDictionary<(Type baseType, string typeName), Type?> _yamlTypeTagCache = new();
+        private readonly Dictionary<(Type baseType, string typeName), Type?> _yamlTypeTagCache = new();
 
         private readonly Dictionary<string, Type> _looseTypeCache = new();
 
-        private readonly ConcurrentDictionary<string, Enum?> _enumCache = new();
-        private readonly ConcurrentDictionary<Enum, string> _reverseEnumCache = new();
+        private readonly Dictionary<string, Enum> _enumCache = new();
+        private readonly Dictionary<Enum, string> _reverseEnumCache = new();
 
-        private ImmutableArray<Type> _getAllTypesCache = ImmutableArray<Type>.Empty;
+        private readonly ReaderWriterLockSlim _enumCacheLock = new();
+        private readonly ReaderWriterLockSlim _yamlTypeTagCacheLock = new();
 
-        private ImmutableDictionary<Type, ImmutableArray<Type>> _inheritanceCache =
-            ImmutableDictionary<Type, ImmutableArray<Type>>.Empty;
-
-        private ImmutableDictionary<Type, ImmutableHashSet<Type>> _attributeCache =
-            ImmutableDictionary<Type, ImmutableHashSet<Type>>.Empty;
-
-        private ImmutableDictionary<string, ImmutableArray<Type>> _allEnumCache =
-            ImmutableDictionary<string, ImmutableArray<Type>>.Empty;
-
+        private readonly List<Type> _getAllTypesCache = new();
         private ISawmill _sawmill = default!;
 
         public void Initialize()
         {
             _sawmill = _logMan.GetSawmill("Reflection");
-            EnsureGetAllTypesCache();
         }
 
         /// <inheritdoc />
@@ -68,22 +61,21 @@ namespace Robust.Shared.Reflection
         {
             EnsureGetAllTypesCache();
 
-            if (inclusive)
-                yield return baseType;
-
-            if (!_inheritanceCache.TryGetValue(baseType, out var inheritors))
-                yield break;
-
-            foreach (var inheritor in inheritors)
+            foreach (var type in _getAllTypesCache)
             {
-                if (!inheritor.IsAbstract)
-                    yield return inheritor;
+                if (!baseType.IsAssignableFrom(type) || type.IsAbstract)
+                    continue;
+
+                if (baseType == type && !inclusive)
+                    continue;
+
+                yield return type;
             }
         }
 
-        internal void EnsureGetAllTypesCache()
+        private void EnsureGetAllTypesCache()
         {
-            if (_getAllTypesCache.Length != 0)
+            if (_getAllTypesCache.Count != 0)
                 return;
 
             var totalLength = 0;
@@ -96,10 +88,7 @@ namespace Robust.Shared.Reflection
                 totalLength += types.Length;
             }
 
-            var typesCache = ImmutableArray.CreateBuilder<Type>(totalLength);
-            var inheritanceCache = ImmutableDictionary.CreateBuilder<Type, (List<Type> List, HashSet<Type> Set)>();
-            var attributeCache = ImmutableDictionary.CreateBuilder<Type, HashSet<Type>>();
-            var enumCache = ImmutableDictionary.CreateBuilder<string, List<Type>>();
+            _getAllTypesCache.Capacity = totalLength;
 
             foreach (var typeSet in typeSets)
             {
@@ -110,105 +99,9 @@ namespace Robust.Shared.Reflection
                     if (!(attribute?.Discoverable ?? ReflectAttribute.DEFAULT_DISCOVERABLE))
                         continue;
 
-                    typesCache.Add(type);
-
-                    var baseType = type.BaseType;
-                    foreach (var @interface in type.GetInterfaces())
-                    {
-                        if (!inheritanceCache.TryGetValue(@interface, out var interfaces))
-                        {
-                            interfaces = ([], []);
-                            inheritanceCache[@interface] = interfaces;
-                        }
-
-                        if (interfaces.Set.Add(type))
-                            interfaces.List.Add(type);
-                    }
-
-                    while (baseType != null)
-                    {
-                        if (!inheritanceCache.TryGetValue(baseType, out var subTypes))
-                        {
-                            subTypes = ([], []);
-                            inheritanceCache[baseType] = subTypes;
-                        }
-
-                        if (subTypes.Set.Add(type))
-                            subTypes.List.Add(type);
-
-                        foreach (var @interface in baseType.GetInterfaces())
-                        {
-                            if (!inheritanceCache.TryGetValue(@interface, out var interfaces))
-                            {
-                                interfaces = ([], []);
-                                inheritanceCache[@interface] = interfaces;
-                            }
-
-                            if (interfaces.Set.Add(type))
-                                interfaces.List.Add(type);
-                        }
-
-                        baseType = baseType.BaseType;
-                    }
-
-                    foreach (var typeAttribute in type.CustomAttributes)
-                    {
-                        if (!attributeCache.TryGetValue(typeAttribute.AttributeType, out var attributes))
-                        {
-                            attributes = [];
-                            attributeCache[typeAttribute.AttributeType] = attributes;
-                        }
-
-                        attributes.Add(type);
-                    }
-
-                    if (type.IsEnum)
-                    {
-                        var fullName = type.FullName!;
-                        var types = enumCache.GetOrNew(fullName);
-                        types.Add(type);
-
-                        types = enumCache.GetOrNew(type.Name);
-                        types.Add(type);
-
-                        var declaringType = type.DeclaringType;
-                        var lastIndexOf = fullName.LastIndexOf('.');
-                        while (declaringType != null && lastIndexOf != -1)
-                        {
-                            types = enumCache.GetOrNew(fullName[(lastIndexOf + 1)..]);
-                            types.Add(type);
-
-                            declaringType = declaringType.DeclaringType;
-                            lastIndexOf = fullName.LastIndexOf('.', lastIndexOf - 1, lastIndexOf - 1);
-                        }
-                    }
+                    _getAllTypesCache.Add(type);
                 }
             }
-
-            var toAdd = new HashSet<Type>();
-            foreach (var (attributeType, types) in attributeCache)
-            {
-                if (attributeType.GetCustomAttribute<AttributeUsageAttribute>() is not { Inherited: true })
-                {
-                    continue;
-                }
-
-                toAdd.Clear();
-                foreach (var type in types)
-                {
-                    if (inheritanceCache.TryGetValue(type, out var inheritors))
-                        toAdd.UnionWith(inheritors.Set);
-                }
-
-                types.UnionWith(toAdd);
-            }
-
-            _getAllTypesCache = typesCache.ToImmutable();
-            _inheritanceCache = inheritanceCache
-                .ToImmutableDictionary(kvp => kvp.Key, kvp => kvp.Value.List.ToImmutableArray());
-            _attributeCache = attributeCache
-                .ToImmutableDictionary(kvp => kvp.Key, kvp => kvp.Value.ToImmutableHashSet());
-            _allEnumCache = enumCache.ToImmutableDictionary(kvp => kvp.Key, kvp => kvp.Value.ToImmutableArray());
         }
 
         public void LoadAssemblies(params Assembly[] args) => LoadAssemblies(args.AsEnumerable());
@@ -220,9 +113,7 @@ namespace Robust.Shared.Reflection
                 throw new InvalidOperationException("Attempted to load the same assembly multiple times!");
 
             this.assemblies.AddRange(assembliesArray);
-            _getAllTypesCache = ImmutableArray<Type>.Empty;
-            _inheritanceCache = ImmutableDictionary<Type, ImmutableArray<Type>>.Empty;
-            _allEnumCache = ImmutableDictionary<string, ImmutableArray<Type>>.Empty;
+            _getAllTypesCache.Clear();
             OnAssemblyAdded?.Invoke(this, new ReflectionUpdateEventArgs(this));
         }
 
@@ -322,7 +213,7 @@ namespace Robust.Shared.Reflection
         public IEnumerable<Type> FindTypesWithAttribute(Type attributeType)
         {
             EnsureGetAllTypesCache();
-            return _attributeCache.GetValueOrDefault(attributeType) ?? Enumerable.Empty<Type>();
+            return _getAllTypesCache.Where(type => Attribute.IsDefined(type, attributeType));
         }
 
         public IEnumerable<Type> FindAllTypes()
@@ -334,35 +225,44 @@ namespace Robust.Shared.Reflection
         /// <inheritdoc />
         public string GetEnumReference(Enum @enum)
         {
-            return _reverseEnumCache.GetOrAdd(@enum,
-                _ =>
-                {
-                    // if there is more than one enum with the same basic name, the reference may need to be the fully qualified name.
-                    // but if possible we want to avoid that and use a shorter string.
-
-                    string reference;
-                    var fullName = @enum.GetType().FullName!;
-                    var dotIndex = fullName.LastIndexOf('.');
-                    if (dotIndex > 0 && dotIndex != fullName.Length)
-                    {
-                        var name = fullName.Substring(dotIndex + 1);
-                        reference = $"enum.{name}.{@enum}";
-
-                        if (_enumCache.TryAdd(reference, @enum))
-                            return reference;
-                    }
-
-                    // If that failed, just use the full name.
-                    reference = $"enum.{fullName}.{@enum}";
-                    _enumCache.TryAdd(reference, @enum);
+            using (_enumCacheLock.ReadGuard())
+            {
+                if (_reverseEnumCache.TryGetValue(@enum, out var reference))
                     return reference;
-                });
+            }
+
+            using (_enumCacheLock.WriteGuard())
+            {
+                if (_reverseEnumCache.TryGetValue(@enum, out var reference))
+                    return reference;
+
+                // if there is more than one enum with the same basic name, the reference may need to be the fully qualified name.
+                // but if possible we want to avoid that and use a shorter string.
+
+                var fullName = @enum.GetType().FullName!;
+                var dotIndex = fullName.LastIndexOf('.');
+                if (dotIndex > 0 && dotIndex != fullName.Length)
+                {
+                    var name = fullName.Substring(dotIndex + 1);
+                    reference = $"enum.{name}.{@enum}";
+
+                    if (_enumCache.TryAdd(reference, @enum))
+                    {
+                        _reverseEnumCache.Add(@enum, reference);
+                        return reference;
+                    }
+                }
+
+                // If that failed, just use the full name.
+                reference = $"enum.{fullName}.{@enum}";
+                _reverseEnumCache.Add(@enum, reference);
+                _enumCache.Add(reference, @enum);
+                return reference;
+            }
         }
 
         /// <inheritdoc />
-        public bool TryParseEnumReference(
-            string reference,
-            [NotNullWhen(true)] out Enum? @enum,
+        public bool TryParseEnumReference(string reference, [NotNullWhen(true)] out Enum? @enum,
             bool shouldThrow = true)
         {
             if (!reference.StartsWith("enum."))
@@ -371,108 +271,100 @@ namespace Robust.Shared.Reflection
                 return false;
             }
 
-            @enum = _enumCache.GetOrAdd(reference,
-                r =>
-                {
-                    var cropped = r.AsSpan(5);
+            using (_enumCacheLock.ReadGuard())
+            {
+                if (_enumCache.TryGetValue(reference, out @enum))
+                    return true;
+            }
 
-                    // Doesn't exist, add it.
-                    var dotIndex = cropped.LastIndexOf('.');
-                    var typeName = cropped[..dotIndex];
-
-                    var firstDot = typeName.IndexOf('.');
-                    if (firstDot != -1)
-                        typeName = typeName[(firstDot + 1)..];
-
-                    var value = cropped[(dotIndex + 1)..];
-
-                    if (!_allEnumCache.TryGetValue(typeName.ToString(), out var enums))
-                        return null;
-
-                    foreach (var @enum in enums)
-                    {
-                        if (!TypeNameMatchesEnumReference(@enum.FullName!, typeName))
-                            continue;
-
-                        var e = (Enum)Enum.Parse(@enum, value);
-                        if (!_reverseEnumCache.TryAdd(e, r) &&
-                            r != _reverseEnumCache[e])
-                        {
-                            _sawmill.Warning(
-                                $"Conflicting enum references encountered. Enum: {e}. Existing: {_reverseEnumCache[e]}. New: {r}");
-                        }
-
-                        return e;
-                    }
-
-                    return null;
-                });
-
-            if (@enum == null && shouldThrow)
-                throw new ArgumentException($"Could not resolve enum reference: {reference}.");
-
-            return @enum != null;
-        }
-
-        private static bool TypeNameMatchesEnumReference(ReadOnlySpan<char> fullName, ReadOnlySpan<char> typeName)
-        {
-            if (fullName.SequenceEqual(typeName))
+            using var _ = _enumCacheLock.WriteGuard();
+            if (_enumCache.TryGetValue(reference, out @enum))
                 return true;
 
-            if (fullName.Length <= typeName.Length)
-                return false;
+            var cropped = reference.Substring(5);
 
-            var prefixIndex = fullName.Length - typeName.Length - 1;
-            var separator = fullName[prefixIndex];
+            // Doesn't exist, add it.
+            var dotIndex = cropped.LastIndexOf('.');
+            var typeName = cropped.Substring(0, dotIndex);
 
-            return separator is '.' or '+'
-                   && fullName[(prefixIndex + 1)..].SequenceEqual(typeName);
+            var value = cropped.Substring(dotIndex + 1);
+
+            foreach (var assembly in assemblies)
+            {
+                foreach (var type in assembly.DefinedTypes)
+                {
+                    if (!type.IsEnum || !(
+                            type.FullName!.Equals(typeName) ||
+                            type.FullName!.EndsWith("." + typeName) ||
+                            type.FullName!.EndsWith("+" + typeName)))
+                    {
+                        continue;
+                    }
+
+                    @enum = (Enum)Enum.Parse(type, value);
+                    if (!_reverseEnumCache.TryAdd(@enum, reference))
+                    {
+                        _sawmill.Warning($"Conflicting enum references encountered. Enum: {@enum}. Existing: {_reverseEnumCache[@enum]}. New: {reference}");
+                    }
+                    _enumCache.Add(reference, @enum);
+                    return true;
+                }
+            }
+
+            if (shouldThrow)
+                throw new ArgumentException($"Could not resolve enum reference: {reference}.");
+            return false;
         }
 
         public Type? YamlTypeTagLookup(Type baseType, string typeName)
         {
-            return _yamlTypeTagCache.GetOrAdd((baseType, typeName),
-                _ =>
+            using (_yamlTypeTagCacheLock.ReadGuard())
+            {
+                if (_yamlTypeTagCache.TryGetValue((baseType, typeName), out var type))
+                    return type;
+            }
+
+            using (_yamlTypeTagCacheLock.WriteGuard())
+            {
+                if (_yamlTypeTagCache.TryGetValue((baseType, typeName), out var type))
+                    return type;
+                Type? found = null;
+                foreach (var derivedType in GetAllChildren(baseType))
                 {
-                    Type? found = null;
-                    foreach (var derivedType in GetAllChildren(baseType))
+                    if (!derivedType.IsPublic)
                     {
-                        if (!derivedType.IsPublic)
-                        {
-                            continue;
-                        }
-
-                        if (derivedType.Name == typeName)
-                        {
-                            found = derivedType;
-                            break;
-                        }
+                        continue;
                     }
 
-                    // Fallback
-                    if (found == null)
+                    if (derivedType.Name == typeName)
                     {
-                        TryLooseGetType(typeName, out found);
-
-                        // If we may have gotten the type but it's still abstract then don't return it.
-                        if (found == null || found.IsAbstract || !found.IsAssignableTo(baseType))
-                            found = null;
+                        found = derivedType;
+                        break;
                     }
 
-                    return found;
-                });
-        }
+                    var serializedAttribute = derivedType.GetCustomAttribute<SerializedTypeAttribute>();
 
-        public bool IsAttributeDefined(Type type, Type attribute)
-        {
-            return _attributeCache.TryGetValue(attribute, out var attributes) &&
-                   attributes.Contains(type);
-        }
+                    if (serializedAttribute != null &&
+                        serializedAttribute.SerializeName == typeName)
+                    {
+                        found = derivedType;
+                        break;
+                    }
+                }
 
-        public ImmutableHashSet<Type> FindTypesWithAttributeSet<T>()
-        {
-            EnsureGetAllTypesCache();
-            return _attributeCache.GetValueOrDefault(typeof(T)) ?? ImmutableHashSet<Type>.Empty;
+                // Fallback
+                if (found == null)
+                {
+                    TryLooseGetType(typeName, out found);
+
+                    // If we may have gotten the type but it's still abstract then don't return it.
+                    if (found == null || found.IsAbstract || !found.IsAssignableTo(baseType))
+                        found = null;
+                }
+
+                _yamlTypeTagCache.Add((baseType, typeName), found);
+                return found;
+            }
         }
     }
 }

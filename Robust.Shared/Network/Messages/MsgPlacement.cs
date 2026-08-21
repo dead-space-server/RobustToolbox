@@ -33,7 +33,6 @@ namespace Robust.Shared.Network.Messages
         public string ObjType { get; set; }
         public string AlignOption { get; set; }
         public Vector2 RectSize { get; set; }
-        public float RectRotation { get; set; }
 
         /// <summary>
         /// Used to determine tile sprite mirroring
@@ -72,7 +71,6 @@ namespace Robust.Shared.Network.Messages
                 case PlacementManagerMessage.RequestRectRemove:
                     NetCoordinates = buffer.ReadNetCoordinates();
                     RectSize = buffer.ReadVector2();
-                    RectRotation = buffer.ReadFloat();
                     break;
             }
         }
@@ -109,7 +107,6 @@ namespace Robust.Shared.Network.Messages
                 case PlacementManagerMessage.RequestRectRemove:
                     buffer.Write(NetCoordinates);
                     buffer.Write(RectSize);
-                    buffer.Write(RectRotation);
                     break;
             }
         }

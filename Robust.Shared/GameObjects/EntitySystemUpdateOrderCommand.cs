@@ -6,9 +6,9 @@ using Robust.Shared.Toolshed;
 namespace Robust.Shared.GameObjects;
 
 [ToolshedCommand]
-internal sealed partial class EntitySystemUpdateOrderCommand : ToolshedCommand
+internal sealed class EntitySystemUpdateOrderCommand : ToolshedCommand
 {
-    [Dependency] private IEntitySystemManager _entitySystemManager = default!;
+    [Dependency] private readonly IEntitySystemManager _entitySystemManager = default!;
 
     [CommandImplementation("tick")]
     public IEnumerable<Type> Tick()

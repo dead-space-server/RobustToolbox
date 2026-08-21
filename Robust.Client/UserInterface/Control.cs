@@ -532,7 +532,7 @@ namespace Robust.Client.UserInterface
         public Control()
         {
             UserInterfaceManagerInternal = IoCManager.Resolve<IUserInterfaceManagerInternal>();
-            _styleClasses = new StyleClassCollection(this);
+            StyleClasses = new StyleClassCollection(this);
             Children = new OrderedChildCollection(this);
             Theme = UserInterfaceManagerInternal.CurrentTheme;
             XamlChildren = Children;
@@ -634,7 +634,6 @@ namespace Robust.Client.UserInterface
         /// <summary>
         ///     Dispose all children, but leave this one intact.
         /// </summary>
-        [Obsolete("Use RemoveAllChildren")]
         public void DisposeAllChildren()
         {
             // Cache because the children modify the dictionary.

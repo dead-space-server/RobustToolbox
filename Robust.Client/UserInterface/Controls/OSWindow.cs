@@ -12,9 +12,9 @@ namespace Robust.Client.UserInterface.Controls
     /// </summary>
     /// <seealso cref="BaseWindow"/>
     [Virtual]
-    public partial class OSWindow : Control
+    public class OSWindow : Control
     {
-        [Dependency] private IClyde _clyde = default!;
+        [Dependency] private readonly IClyde _clyde = default!;
 
         private string _title = "Window";
         private WindowRoot? _root;
@@ -107,10 +107,10 @@ namespace Robust.Client.UserInterface.Controls
             var parameters = new WindowCreateParameters();
 
             if (!float.IsNaN(SetWidth))
-                parameters.Width = (int)SetWidth;
+                parameters.Width = (int) SetWidth;
 
             if (!float.IsNaN(SetHeight))
-                parameters.Height = (int)SetHeight;
+                parameters.Height = (int) SetHeight;
 
             if (SizeToContent != WindowSizeToContent.Manual)
             {

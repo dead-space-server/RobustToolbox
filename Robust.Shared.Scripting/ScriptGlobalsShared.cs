@@ -22,21 +22,18 @@ namespace Robust.Shared.Scripting
     [SuppressMessage("ReSharper", "IdentifierTypo")]
     [SuppressMessage("ReSharper", "InconsistentNaming")]
     [SuppressMessage("ReSharper", "CA1822")]
-    public abstract partial class ScriptGlobalsShared : IInvocationContext
+    public abstract class ScriptGlobalsShared : IInvocationContext
     {
         private const BindingFlags DefaultHelpFlags =
             BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public;
 
-        [Dependency] private IEntityManager _ent = null!;
-        public IEntityManager ent => _ent;
-        [Dependency] private IEntitySystemManager _esm = null!;
-        public IEntitySystemManager esm => _esm;
-        [Dependency] private IPrototypeManager _prot = null!;
-        public IPrototypeManager prot => _prot;
-        [Dependency] private IDependencyCollection _dependencies = null!;
-        public IDependencyCollection dependencies => _dependencies;
-        [Dependency] private ToolshedManager _shed = null!;
-        public ToolshedManager shed => _shed;
+        [field: Dependency] public IEntityManager ent { get; } = default!;
+        [field: Dependency] public IEntitySystemManager esm { get; } = default!;
+        [field: Dependency] public IPrototypeManager prot { get; } = default!;
+        [field: Dependency] public IMapManager map { get; } = default!;
+        [field: Dependency] public IDependencyCollection dependencies { get; } = default!;
+
+        [field: Dependency] public ToolshedManager shed { get; } = default!;
 
         public ToolshedManager Toolshed => shed;
         public ToolshedEnvironment Environment => shed.DefaultEnvironment;

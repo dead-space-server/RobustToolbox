@@ -17,18 +17,18 @@ namespace Robust.Client.Replays.Loading;
 
 public sealed partial class ReplayLoadManager : IReplayLoadManager
 {
-    [Dependency] private ILogManager _logMan = default!;
-    [Dependency] private IBaseClient _client = default!;
-    [Dependency] private EntityManager _entMan = default!;
-    [Dependency] private IClientGameTiming _timing = default!;
-    [Dependency] private IComponentFactory _factory = default!;
-    [Dependency] private IPrototypeManager _protoMan = default!;
-    [Dependency] private ILocalizationManager _locMan = default!;
-    [Dependency] private IConfigurationManager _confMan = default!;
-    [Dependency] private NetworkResourceManager _netResMan = default!;
-    [Dependency] private IClientGameStateManager _gameState = default!;
-    [Dependency] private IClientRobustSerializer _serializer = default!;
-    [Dependency] private IReplayPlaybackManager _replayPlayback = default!;
+    [Dependency] private readonly ILogManager _logMan = default!;
+    [Dependency] private readonly IBaseClient _client = default!;
+    [Dependency] private readonly EntityManager _entMan = default!;
+    [Dependency] private readonly IClientGameTiming _timing = default!;
+    [Dependency] private readonly IComponentFactory _factory = default!;
+    [Dependency] private readonly IPrototypeManager _protoMan = default!;
+    [Dependency] private readonly ILocalizationManager _locMan = default!;
+    [Dependency] private readonly IConfigurationManager _confMan = default!;
+    [Dependency] private readonly NetworkResourceManager _netResMan = default!;
+    [Dependency] private readonly IClientGameStateManager _gameState = default!;
+    [Dependency] private readonly IClientRobustSerializer _serializer = default!;
+    [Dependency] private readonly IReplayPlaybackManager _replayPlayback = default!;
 
     private ushort _metaId;
     private bool _initialized;
@@ -36,7 +36,6 @@ public sealed partial class ReplayLoadManager : IReplayLoadManager
     private int _checkpointMinInterval;
     private int _checkpointEntitySpawnThreshold;
     private int _checkpointEntityStateThreshold;
-    private int _loadedBlockWindow;
     private ISawmill _sawmill = default!;
 
     public void Initialize()
@@ -51,7 +50,6 @@ public sealed partial class ReplayLoadManager : IReplayLoadManager
             true);
         _confMan.OnValueChanged(CVars.CheckpointEntityStateThreshold, value => _checkpointEntityStateThreshold = value,
             true);
-        _confMan.OnValueChanged(CVars.ReplayLoadedBlockWindow, value => _loadedBlockWindow = value, true);
         _metaId = _factory.GetRegistration(typeof(MetaDataComponent)).NetID!.Value;
         _sawmill = _logMan.GetSawmill("replay");
     }

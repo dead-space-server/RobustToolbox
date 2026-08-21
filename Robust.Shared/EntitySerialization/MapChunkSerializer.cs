@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
 using Robust.Shared.Map;
 using Robust.Shared.Maths;
@@ -35,21 +34,23 @@ internal sealed class MapChunkSerializer : ITypeSerializer<MapChunk, MappingData
         ISerializationContext? context = null,
         ISerializationManager.InstantiationDelegate<MapChunk>? instantiationDelegate = null)
     {
-        var ind = serializationManager.Read<Vector2i>(node["ind"], hookCtx, context)!;
+        var ind = (Vector2i) serializationManager.Read(typeof(Vector2i), node["ind"], hookCtx, context)!;
         var tileNode = (ValueDataNode)node["tiles"];
         var tileBytes = Convert.FromBase64String(tileNode.Value);
 
         using var stream = new MemoryStream(tileBytes);
         using var reader = new BinaryReader(stream);
 
-        var mapSystem = dependencies.Resolve<IEntityManager>().System<SharedMapSystem>();
-        mapSystem.SuppressOnTileChanged = true;
+        var mapManager = dependencies.Resolve<IMapManager>();
+        mapManager.SuppressOnTileChanged = true;
 
         ushort size = 16;
 
         // TODO: This should be on the context I think?
         if (node.TryGet("size", out ValueDataNode? sizeNode))
-            size = serializationManager.Read<ushort>(sizeNode, context)!;
+        {
+            size = (ushort) serializationManager.Read(typeof(ushort), sizeNode, context)!;
+        }
 
         var chunk = instantiationDelegate != null ? instantiationDelegate() : new MapChunk(ind.X, ind.Y, size);
 
@@ -111,7 +112,7 @@ internal sealed class MapChunkSerializer : ITypeSerializer<MapChunk, MappingData
         }
 
         chunk.SuppressCollisionRegeneration = false;
-        mapSystem.SuppressOnTileChanged = false;
+        mapManager.SuppressOnTileChanged = false;
 
         return chunk;
     }
@@ -191,8 +192,8 @@ internal sealed class MapChunkSerializer : ITypeSerializer<MapChunk, MappingData
         SerializationHookContext hookCtx,
         ISerializationContext? context = null)
     {
-        var mapSystem = dependencies.Resolve<IEntityManager>().System<SharedMapSystem>();
-        mapSystem.SuppressOnTileChanged = true;
+        var mapManager = dependencies.Resolve<IMapManager>();
+        mapManager.SuppressOnTileChanged = true;
         var chunk = new MapChunk(source.X, source.Y, source.ChunkSize)
         {
             SuppressCollisionRegeneration = true
@@ -206,7 +207,7 @@ internal sealed class MapChunkSerializer : ITypeSerializer<MapChunk, MappingData
             }
         }
 
-        mapSystem.SuppressOnTileChanged = false;
+        mapManager.SuppressOnTileChanged = false;
         chunk.SuppressCollisionRegeneration = false;
 
         return chunk;

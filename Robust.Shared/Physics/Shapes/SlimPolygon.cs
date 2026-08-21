@@ -15,8 +15,7 @@ namespace Robust.Shared.Physics.Shapes;
 /// Polygon backed by FixedArray4 to be smaller.
 /// Useful for internal ops where the inputs are boxes to avoid the additional padding.
 /// </summary>
-[DataDefinition]
-internal partial record struct SlimPolygon : IPhysShape
+internal record struct SlimPolygon : IPhysShape
 {
     public Vector2[] Vertices => _vertices.AsSpan[..VertexCount].ToArray();
 

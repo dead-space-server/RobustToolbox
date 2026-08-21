@@ -7,9 +7,9 @@ using Robust.Shared.IoC;
 namespace Robust.Client.Console.Commands
 {
     [UsedImplicitly]
-    public sealed partial class LsMonitorCommand : LocalizedCommands
+    public sealed class LsMonitorCommand : LocalizedCommands
     {
-        [Dependency] private IClyde _clyde = default!;
+        [Dependency] private readonly IClyde _clyde = default!;
 
         public override string Command => "lsmonitor";
 
@@ -24,9 +24,9 @@ namespace Robust.Client.Console.Commands
     }
 
     [UsedImplicitly]
-    public sealed partial class MonitorInfoCommand : LocalizedCommands
+    public sealed class MonitorInfoCommand : LocalizedCommands
     {
-        [Dependency] private IClyde _clyde = default!;
+        [Dependency] private readonly IClyde _clyde = default!;
 
         public override string Command => "monitorinfo";
 
@@ -51,9 +51,9 @@ namespace Robust.Client.Console.Commands
     }
 
     [UsedImplicitly]
-    public sealed partial class SetMonitorCommand : LocalizedCommands
+    public sealed class SetMonitorCommand : LocalizedCommands
     {
-        [Dependency] private IClyde _clyde = default!;
+        [Dependency] private readonly IClyde _clyde = default!;
 
         public override string Command => "setmonitor";
 

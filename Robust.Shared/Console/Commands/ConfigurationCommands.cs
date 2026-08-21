@@ -5,9 +5,9 @@ using Robust.Shared.IoC;
 namespace Robust.Shared.Console.Commands;
 
 [UsedImplicitly]
-public sealed partial class SaveConfig : LocalizedCommands
+public sealed class SaveConfig : LocalizedCommands
 {
-    [Dependency] private IConfigurationManager _cfg = default!;
+    [Dependency] private readonly IConfigurationManager _cfg = default!;
 
     public override string Command => "saveconfig";
 

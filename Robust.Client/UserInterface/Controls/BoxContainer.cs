@@ -37,18 +37,20 @@ namespace Robust.Client.UserInterface.Controls
             }
         }
 
-        private int ActualSeparation =>
-            SeparationOverride ?? StylePropertyDefault(StylePropertySeparation, DefaultSeparation);
-
-        public int? SeparationOverride
+        private int ActualSeparation
         {
-            get;
-            set
+            get
             {
-                field = value;
-                InvalidateMeasure();
+                if (TryGetStyleProperty(StylePropertySeparation, out int separation))
+                {
+                    return separation;
+                }
+
+                return SeparationOverride ?? DefaultSeparation;
             }
         }
+
+        public int? SeparationOverride { get; set; }
 
         protected override Vector2 MeasureOverride(Vector2 availableSize)
         {

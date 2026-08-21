@@ -10,12 +10,12 @@ namespace Robust.Server.Upload;
 /// <summary>
 ///     Manages sending runtime-loaded prototypes from game staff to clients.
 /// </summary>
-public sealed partial class GamePrototypeLoadManager : SharedPrototypeLoadManager
+public sealed class GamePrototypeLoadManager : SharedPrototypeLoadManager
 {
-    [Dependency] private IServerNetManager _netManager = default!;
-    [Dependency] private IPlayerManager _playerManager = default!;
-    [Dependency] private IConGroupController _controller = default!;
-    [Dependency] private ILogManager _logManager = default!;
+    [Dependency] private readonly IServerNetManager _netManager = default!;
+    [Dependency] private readonly IPlayerManager _playerManager = default!;
+    [Dependency] private readonly IConGroupController _controller = default!;
+    [Dependency] private readonly ILogManager _logManager = default!;
 
     private ISawmill _sawmill = default!;
 
@@ -29,8 +29,8 @@ public sealed partial class GamePrototypeLoadManager : SharedPrototypeLoadManage
     public override void SendGamePrototype(string prototype)
     {
         var msg = new GamePrototypeLoadMessage { PrototypeData = prototype };
-        if (TryLoadPrototypeData(prototype))
-            _netManager.ServerSendToAll(msg);
+        base.LoadPrototypeData(msg);
+        _netManager.ServerSendToAll(msg);
     }
 
     protected override void LoadPrototypeData(GamePrototypeLoadMessage message)
@@ -38,11 +38,9 @@ public sealed partial class GamePrototypeLoadManager : SharedPrototypeLoadManage
         var player = _playerManager.GetSessionByChannel(message.MsgChannel);
         if (_controller.CanCommand(player, "loadprototype"))
         {
-            if (TryLoadPrototypeData(message.PrototypeData))
-            {
-                _netManager.ServerSendToAll(message); // everyone load it up!
-                _sawmill.Info($"Loaded adminbus prototype data from {player.Name}.");
-            }
+            base.LoadPrototypeData(message);
+            _netManager.ServerSendToAll(message); // everyone load it up!
+            _sawmill.Info($"Loaded adminbus prototype data from {player.Name}.");
         }
         else
         {

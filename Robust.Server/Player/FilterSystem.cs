@@ -1,18 +1,20 @@
+using Robust.Server.GameObjects;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Player;
 
-namespace Robust.Server.Player;
-
-internal sealed class FilterSystem : SharedFilterSystem
+namespace Robust.Server.Player
 {
-    public override Filter FromEntities(Filter filter, params EntityUid[] entities)
+    internal sealed class FilterSystem : SharedFilterSystem
     {
-        foreach (var uid in entities)
+        public override Filter FromEntities(Filter filter, params EntityUid[] entities)
         {
-            if (TryComp(uid, out ActorComponent? actor))
-                filter.AddPlayer(actor.PlayerSession);
-        }
+            foreach (var uid in entities)
+            {
+                if (TryComp(uid, out ActorComponent? actor))
+                    filter.AddPlayer(actor.PlayerSession);
+            }
 
-        return filter;
+            return filter;
+        }
     }
 }

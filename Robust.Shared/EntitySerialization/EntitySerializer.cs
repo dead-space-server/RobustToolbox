@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Linq;
 using Robust.Shared.Configuration;
 using Robust.Shared.EntitySerialization.Components;
 using Robust.Shared.EntitySerialization.Systems;
@@ -35,7 +36,7 @@ namespace Robust.Shared.EntitySerialization;
 /// document using the various "Write" methods. (e.g., <see cref="WriteEntitySection"/>). After a one has finished using
 /// the generated data, the serializer needs to be reset (<see cref="Reset"/>) using it again to serialize other entities.
 /// </remarks>
-public sealed partial class EntitySerializer : ISerializationContext,
+public sealed class EntitySerializer : ISerializationContext,
     ITypeSerializer<EntityUid, ValueDataNode>,
     ITypeSerializer<NetEntity, ValueDataNode>,
     ITypeSerializer<MapId, ValueDataNode>
@@ -47,16 +48,16 @@ public sealed partial class EntitySerializer : ISerializationContext,
     // v3->v4: PR #3913 - Grouped entities by prototype
     // v2->v3: PR #3468
 
-    public SerializationManager.SerializerProvider SerializerProvider { get; }
+    public SerializationManager.SerializerProvider SerializerProvider { get; } = new();
 
-    [Dependency] public EntityManager EntMan = default!;
-    [Dependency] public IGameTiming Timing = default!;
-    [Dependency] private IComponentFactory _factory = default!;
-    [Dependency] private ISerializationManager _serialization = default!;
-    [Dependency] private ITileDefinitionManager _tileDef = default!;
-    [Dependency] private IConfigurationManager _conf = default!;
-    [Dependency] private ILogManager _logMan = default!;
-    [Dependency] private SharedMapSystem _map = default!;
+    [Dependency] public readonly EntityManager EntMan = default!;
+    [Dependency] public readonly IGameTiming Timing = default!;
+    [Dependency] private readonly IComponentFactory _factory = default!;
+    [Dependency] private readonly ISerializationManager _serialization = default!;
+    [Dependency] private readonly ITileDefinitionManager _tileDef = default!;
+    [Dependency] private readonly IConfigurationManager _conf = default!;
+    [Dependency] private readonly ILogManager _logMan = default!;
+    [Dependency] private readonly SharedMapSystem _map = default!;
 
     private readonly ISawmill _log;
     public readonly Dictionary<EntityUid, int> YamlUidMap = new();
@@ -78,7 +79,7 @@ public sealed partial class EntitySerializer : ISerializationContext,
 
     /// <summary>
     /// If set, the serializer will refuse to serialize the given entity and will orphan any entity that is parented to
-    /// it. This is useful for serializing things like a grid (or multiple grids &amp; entities) that are parented to a map
+    /// it. This is useful for serializing things like a grid (or multiple grids & entities) that are parented to a map
     /// without actually serializing the map itself.
     /// </summary>
     public EntityUid Truncate { get; private set; }
@@ -148,8 +149,6 @@ public sealed partial class EntitySerializer : ISerializationContext,
     private int _nextYamlTileId;
 
     private readonly List<EntityUid> _autoInclude = new();
-    private readonly List<int> _sortedTileIds = new();
-    private readonly List<string> _sortedProtoIds = new();
     private readonly EntityQuery<YamlUidComponent> _yamlQuery;
     private readonly EntityQuery<MapGridComponent> _gridQuery;
     private readonly EntityQuery<MapComponent> _mapQuery;
@@ -168,7 +167,6 @@ public sealed partial class EntitySerializer : ISerializationContext,
         dependency.InjectDependencies(this);
 
         _log = _logMan.GetSawmill("entity_serializer");
-        SerializerProvider = new(_serialization);
         SerializerProvider.RegisterSerializer(this);
 
         _metaName = _factory.GetComponentName<MetaDataComponent>();
@@ -266,11 +264,7 @@ public sealed partial class EntitySerializer : ISerializationContext,
         if (roots.Count == 0)
             return;
 
-        using (var enumerator = roots.GetEnumerator())
-        {
-            enumerator.MoveNext();
-            InitializeTileMap(enumerator.Current);
-        }
+        InitializeTileMap(roots.First());
 
         HashSet<EntityUid> allEntities = new();
         List<(EntityUid Root, HashSet<EntityUid> Children)> entities = new();
@@ -359,7 +353,7 @@ public sealed partial class EntitySerializer : ISerializationContext,
 
     private void ProcessAutoInclude()
     {
-        DebugTools.Assert(!CollectionHelpers.ContainsDuplicates(_autoInclude));
+        DebugTools.AssertEqual(_autoInclude.ToHashSet().Count, _autoInclude.Count);
 
         var ents = new HashSet<EntityUid>();
 
@@ -586,8 +580,7 @@ public sealed partial class EntitySerializer : ISerializationContext,
         {
             // try comp instead of has-comp as it checks whether the component is supposed to have been
             // deleted.
-            if (EntMan.TryGetComponent(uid, comp.Component.GetType(), out var component)
-                && !EntMan.IsComponentPendingRemoval(component))
+            if (EntMan.TryGetComponent(uid, comp.Component.GetType(), out _))
                 continue;
 
             missingComponents ??= new();
@@ -635,9 +628,6 @@ public sealed partial class EntitySerializer : ISerializationContext,
     {
         foreach (var component in EntMan.GetComponentsInternal(uid))
         {
-            if (EntMan.IsComponentPendingRemoval(component))
-                continue;
-
             var compType = component.GetType();
 
             var reg = _factory.GetRegistration(compType);
@@ -706,10 +696,10 @@ public sealed partial class EntitySerializer : ISerializationContext,
 
     public MappingDataNode Write()
     {
-        DebugTools.Assert(!CollectionHelpers.ContainsDuplicates(Maps), "Duplicate maps?");
-        DebugTools.Assert(!CollectionHelpers.ContainsDuplicates(Grids), "Duplicate grids?");
-        DebugTools.Assert(!CollectionHelpers.ContainsDuplicates(Orphans), "Duplicate orphans?");
-        DebugTools.Assert(!CollectionHelpers.ContainsDuplicates(Nullspace), "Duplicate nullspace?");
+        DebugTools.AssertEqual(Maps.ToHashSet().Count, Maps.Count, "Duplicate maps?");
+        DebugTools.AssertEqual(Grids.ToHashSet().Count, Grids.Count, "Duplicate grids?");
+        DebugTools.AssertEqual(Orphans.ToHashSet().Count, Orphans.Count, "Duplicate orphans?");
+        DebugTools.AssertEqual(Nullspace.ToHashSet().Count, Nullspace.Count, "Duplicate nullspace?");
 
         return new MappingDataNode
         {
@@ -753,21 +743,12 @@ public sealed partial class EntitySerializer : ISerializationContext,
     public MappingDataNode WriteTileMap()
     {
         var map = new MappingDataNode();
-        _sortedTileIds.Clear();
-        foreach (var tileId in _tileMap.Keys)
-        {
-            _sortedTileIds.Add(tileId);
-        }
-
-        _sortedTileIds.Sort();
-
-        foreach (var tileId in _sortedTileIds)
+        foreach (var (tileId, yamlTileId) in _tileMap.OrderBy(x => x.Key))
         {
             // This can come up if tests try to serialize test maps with custom / placeholder tile ids without registering them with the tile def manager..
             if (!_tileDef.TryGetDefinition(tileId, out var def))
                 throw new Exception($"Attempting to serialize a tile {tileId} with no valid tile definition.");
 
-            var yamlTileId = _tileMap[tileId];
             var yamlId = yamlTileId.ToString(CultureInfo.InvariantCulture);
             map.Add(yamlId, def.ID);
         }
@@ -787,15 +768,10 @@ public sealed partial class EntitySerializer : ISerializationContext,
         }
 
         var prototypes = new SequenceDataNode();
-        _sortedProtoIds.Clear();
-        foreach (var protoId in Prototypes.Keys)
-        {
-            _sortedProtoIds.Add(protoId);
-        }
+        var protos = Prototypes.Keys.ToList();
+        protos.Sort(StringComparer.InvariantCulture);
 
-        _sortedProtoIds.Sort(StringComparer.InvariantCulture);
-
-        foreach (var protoId in _sortedProtoIds)
+        foreach (var protoId in protos)
         {
             var entities = new SequenceDataNode();
             var node = new MappingDataNode

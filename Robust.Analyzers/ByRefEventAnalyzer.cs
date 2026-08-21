@@ -56,10 +56,6 @@ public sealed class ByRefEventAnalyzer : DiagnosticAnalyzer
         context.EnableConcurrentExecution();
         context.RegisterCompilationStartAction(compilationContext =>
         {
-            var byRefAttribute = compilationContext.Compilation.GetTypeByMetadataName(ByRefAttribute);
-            if (byRefAttribute == null)
-                return;
-
             var raiseMethods = compilationContext.Compilation
                 .GetTypeByMetadataName("Robust.Shared.GameObjects.EntitySystem")?
                 .GetMembers()
@@ -81,15 +77,14 @@ public sealed class ByRefEventAnalyzer : DiagnosticAnalyzer
             var raiseMethodsArray = raiseMethods.ToArray();
 
             compilationContext.RegisterOperationAction(
-                ctx => CheckEventRaise(ctx, raiseMethodsArray, byRefAttribute),
+                ctx => CheckEventRaise(ctx, raiseMethodsArray),
                 OperationKind.Invocation);
         });
     }
 
     private static void CheckEventRaise(
         OperationAnalysisContext context,
-        IReadOnlyCollection<IMethodSymbol> raiseMethods,
-        INamedTypeSymbol byRefAttribute)
+        IReadOnlyCollection<IMethodSymbol> raiseMethods)
     {
         if (context.Operation is not IInvocationOperation operation)
             return;
@@ -130,6 +125,10 @@ public sealed class ByRefEventAnalyzer : DiagnosticAnalyzer
         {
             return;
         }
+
+        var byRefAttribute = context.Compilation.GetTypeByMetadataName(ByRefAttribute);
+        if (byRefAttribute == null)
+            return;
 
         var isByRefEventType = eventParameter.Type
             .GetAttributes()

@@ -10,9 +10,7 @@ namespace Robust.Shared.Physics;
 /// </summary>
 internal ref struct InternalPhysicsHull
 {
-    private FixedArray8<Vector2> _points;
-
-    public Span<Vector2> Points => field.IsEmpty ? _points.AsSpan : field;
+    public Span<Vector2> Points;
     public int Count;
 
     internal InternalPhysicsHull(Span<Vector2> vertices, int count) : this()
@@ -68,6 +66,7 @@ internal ref struct InternalPhysicsHull
             return hull;
         }
 
+        hull.Points = new Vector2[PhysicsConstants.MaxPolygonVertices];
         var bestPoint = ps[bestIndex];
 
         // compute hull to the right of p1-bestPoint
@@ -112,8 +111,7 @@ internal ref struct InternalPhysicsHull
 
 	    count = Math.Min(count, PhysicsConstants.MaxPolygonVertices);
 
-        var aabbBottomLeft = new Vector2(float.MaxValue, float.MaxValue);
-        var aabbTopRight = new Vector2(float.MinValue, float.MinValue);
+        Box2 aabb = new Box2(float.MaxValue, float.MaxValue, float.MinValue, float.MinValue);
 
 	    // Perform aggressive point welding. First point always remains.
 	    // Also compute the bounding box for later.
@@ -122,8 +120,8 @@ internal ref struct InternalPhysicsHull
 	    const float tolSqr = 16.0f * PhysicsConstants.LinearSlop * PhysicsConstants.LinearSlop;
 	    for (var i = 0; i < count; ++i)
 	    {
-		    aabbBottomLeft = Vector2.Min(aabbBottomLeft, points[i]);
-		    aabbTopRight = Vector2.Max(aabbTopRight, points[i]);
+		    aabb.BottomLeft = Vector2.Min(aabb.BottomLeft, points[i]);
+		    aabb.TopRight = Vector2.Max(aabb.TopRight, points[i]);
 
 		    var vi = points[i];
 
@@ -153,7 +151,6 @@ internal ref struct InternalPhysicsHull
 	    }
 
 	    // Find an extreme point as the first point on the hull
-	    var aabb = new Box2(aabbBottomLeft, aabbTopRight);
 	    var c = aabb.Center;
 	    var i1 = 0;
         float dsq1 = (ps[i1] - c).LengthSquared();
@@ -224,6 +221,8 @@ internal ref struct InternalPhysicsHull
 		    // all points collinear
 		    return hull;
 	    }
+
+        hull.Points = new Vector2[PhysicsConstants.MaxPolygonVertices];
 
 	    // stitch hulls together, preserving CCW winding order
 	    hull.Points[hull.Count++] = p1;

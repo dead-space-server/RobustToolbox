@@ -6,10 +6,8 @@ using Robust.Shared.GameObjects;
 using Robust.Shared.Map;
 using Robust.Shared.Map.Components;
 using Robust.Shared.Maths;
-using Robust.Shared.Physics;
 using Robust.Shared.Physics.Collision.Shapes;
 using Robust.Shared.Physics.Components;
-using Robust.Shared.Physics.Dynamics;
 using Robust.Shared.Physics.Systems;
 using Robust.UnitTesting.Server;
 
@@ -19,9 +17,6 @@ namespace Robust.UnitTesting.Shared
     internal sealed class EntityLookupTest
     {
         private static readonly MapId MapId = new MapId(1);
-        private const string FixtureId = "fix1";
-        private const int FixtureLayer = 1;
-        private const int FixtureMask = 2;
 
         private static readonly TestCaseData[] IntersectingCases = new[]
         {
@@ -61,43 +56,18 @@ namespace Robust.UnitTesting.Shared
             new TestCaseData(true, new MapCoordinates(new Vector2(11f + 0.35f, 10f), MapId), Vector2i.Zero, false),
         };
 
-        private EntityUid GetPhysicsEntity(
-            IEntityManager entManager,
-            MapCoordinates spawnPos,
-            int collisionLayer = 0,
-            int collisionMask = 0,
-            float radius = 0.35f,
-            bool hard = true)
+        private EntityUid GetPhysicsEntity(IEntityManager entManager, MapCoordinates spawnPos)
         {
             var ent = entManager.SpawnEntity(null, spawnPos);
             var physics = entManager.AddComponent<PhysicsComponent>(ent);
-            entManager.System<FixtureSystem>().TryCreateFixture(
-                ent,
-                new PhysShapeCircle(radius, Vector2.Zero),
-                FixtureId,
-                hard: hard,
-                collisionLayer: collisionLayer,
-                collisionMask: collisionMask);
+            entManager.System<FixtureSystem>().TryCreateFixture(ent, new PhysShapeCircle(0.35f, Vector2.Zero), "fix1");
             entManager.System<SharedPhysicsSystem>().SetCanCollide(ent, true, body: physics);
             return ent;
         }
 
-        private static FixtureQueryArgs FixtureQuery(bool approximate = false, bool ignoreShapeSkin = false)
+        private Entity<MapGridComponent> SetupGrid(MapId mapId, SharedMapSystem mapSystem, IEntityManager entManager, IMapManager mapManager)
         {
-            return new FixtureQueryArgs(
-                new QueryFilter
-                {
-                    LayerBits = FixtureMask,
-                    MaskBits = FixtureLayer,
-                    Flags = QueryFlags.Dynamic | QueryFlags.Static,
-                },
-                approximate,
-                ignoreShapeSkin);
-        }
-
-        private Entity<MapGridComponent> SetupGrid(MapId mapId, SharedMapSystem mapSystem, IEntityManager entManager)
-        {
-            var grid = mapSystem.CreateGridEntity(mapId);
+            var grid = mapManager.CreateGridEntity(mapId);
             entManager.System<SharedTransformSystem>().SetLocalPosition(grid.Owner, new Vector2(10f, 10f));
             mapSystem.SetTile(grid, Vector2i.Zero, new Tile(1));
             return grid;
@@ -118,10 +88,11 @@ namespace Robust.UnitTesting.Shared
 
             var lookup = server.Resolve<IEntitySystemManager>().GetEntitySystem<EntityLookupSystem>();
             var entManager = server.Resolve<IEntityManager>();
+            var mapManager = server.Resolve<IMapManager>();
             var mapSystem = entManager.System<SharedMapSystem>();
 
             mapSystem.CreateMap(spawnPos.MapId);
-            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager);
+            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager, mapManager);
 
             if (physics)
                 GetPhysicsEntity(entManager, spawnPos);
@@ -142,10 +113,11 @@ namespace Robust.UnitTesting.Shared
 
             var lookup = server.Resolve<IEntitySystemManager>().GetEntitySystem<EntityLookupSystem>();
             var entManager = server.Resolve<IEntityManager>();
+            var mapManager = server.Resolve<IMapManager>();
             var mapSystem = entManager.System<SharedMapSystem>();
 
             mapSystem.CreateMap(spawnPos.MapId);
-            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager);
+            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager, mapManager);
 
             if (physics)
                 GetPhysicsEntity(entManager, spawnPos);
@@ -169,10 +141,11 @@ namespace Robust.UnitTesting.Shared
 
             var lookup = server.Resolve<IEntitySystemManager>().GetEntitySystem<EntityLookupSystem>();
             var entManager = server.Resolve<IEntityManager>();
+            var mapManager = server.Resolve<IMapManager>();
             var mapSystem = entManager.System<SharedMapSystem>();
 
             mapSystem.CreateMap(spawnPos.MapId);
-            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager);
+            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager, mapManager);
 
             if (physics)
                 GetPhysicsEntity(entManager, spawnPos);
@@ -197,10 +170,11 @@ namespace Robust.UnitTesting.Shared
 
             var lookup = server.Resolve<IEntitySystemManager>().GetEntitySystem<EntityLookupSystem>();
             var entManager = server.Resolve<IEntityManager>();
+            var mapManager = server.Resolve<IMapManager>();
             var mapSystem = entManager.System<SharedMapSystem>();
 
             mapSystem.CreateMap(spawnPos.MapId);
-            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager);
+            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager, mapManager);
 
             if (physics)
                 GetPhysicsEntity(entManager, spawnPos);
@@ -247,10 +221,11 @@ namespace Robust.UnitTesting.Shared
 
             var lookup = server.Resolve<IEntitySystemManager>().GetEntitySystem<EntityLookupSystem>();
             var entManager = server.Resolve<IEntityManager>();
+            var mapManager = server.Resolve<IMapManager>();
             var mapSystem = entManager.System<SharedMapSystem>();
 
             mapSystem.CreateMap(spawnPos.MapId);
-            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager);
+            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager, mapManager);
 
             if (physics)
                 GetPhysicsEntity(entManager, spawnPos);
@@ -272,10 +247,11 @@ namespace Robust.UnitTesting.Shared
 
             var lookup = server.Resolve<IEntitySystemManager>().GetEntitySystem<EntityLookupSystem>();
             var entManager = server.Resolve<IEntityManager>();
+            var mapManager = server.Resolve<IMapManager>();
             var mapSystem = entManager.System<SharedMapSystem>();
 
             mapSystem.CreateMap(spawnPos.MapId);
-            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager);
+            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager, mapManager);
 
             if (physics)
                 GetPhysicsEntity(entManager, spawnPos);
@@ -319,10 +295,11 @@ namespace Robust.UnitTesting.Shared
 
             var lookup = server.Resolve<IEntitySystemManager>().GetEntitySystem<EntityLookupSystem>();
             var entManager = server.Resolve<IEntityManager>();
+            var mapManager = server.Resolve<IMapManager>();
             var mapSystem = entManager.System<SharedMapSystem>();
 
             mapSystem.CreateMap(spawnPos.MapId);
-            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager);
+            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager, mapManager);
 
             if (physics)
                 GetPhysicsEntity(entManager, spawnPos);
@@ -346,10 +323,11 @@ namespace Robust.UnitTesting.Shared
 
             var lookup = server.Resolve<IEntitySystemManager>().GetEntitySystem<EntityLookupSystem>();
             var entManager = server.Resolve<IEntityManager>();
+            var mapManager = server.Resolve<IMapManager>();
             var mapSystem = entManager.System<SharedMapSystem>();
 
             mapSystem.CreateMap(spawnPos.MapId);
-            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager);
+            var grid = SetupGrid(spawnPos.MapId, mapSystem, entManager, mapManager);
 
             if (physics)
                 GetPhysicsEntity(entManager, spawnPos);
@@ -365,145 +343,6 @@ namespace Robust.UnitTesting.Shared
 
         #endregion
 
-        #region Fixtures
-
-        [Test]
-        public void TestGetFixturesIntersectingReturnsFixtureProxies()
-        {
-            var sim = RobustServerSimulation.NewSimulation();
-            var server = sim.InitializeInstance();
-
-            var lookup = server.Resolve<IEntitySystemManager>().GetEntitySystem<EntityLookupSystem>();
-            var entManager = server.Resolve<IEntityManager>();
-            var mapSystem = entManager.System<SharedMapSystem>();
-            mapSystem.CreateMap(MapId);
-
-            var matching = GetPhysicsEntity(entManager, new MapCoordinates(Vector2.Zero, MapId), FixtureLayer, FixtureMask);
-            _ = GetPhysicsEntity(entManager, new MapCoordinates(Vector2.Zero, MapId), collisionLayer: 4, collisionMask: 8);
-            _ = GetPhysicsEntity(entManager, new MapCoordinates(new Vector2(5f, 0f), MapId), FixtureLayer, FixtureMask);
-
-            var fixtures = new HashSet<FixtureProxy>();
-            lookup.GetFixturesIntersecting(
-                MapId,
-                Box2.CenteredAround(Vector2.Zero, Vector2.One),
-                fixtures,
-                FixtureQuery());
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(fixtures.Select(fixture => fixture.Entity), Is.EquivalentTo(new[] { matching }));
-                Assert.That(fixtures.Single().FixtureId, Is.EqualTo(FixtureId));
-            });
-
-            mapSystem.DeleteMap(MapId);
-        }
-
-        [Test]
-        public void TestForEachFixtureIntersectingCanStopQuery()
-        {
-            var sim = RobustServerSimulation.NewSimulation();
-            var server = sim.InitializeInstance();
-
-            var lookup = server.Resolve<IEntitySystemManager>().GetEntitySystem<EntityLookupSystem>();
-            var entManager = server.Resolve<IEntityManager>();
-            var mapSystem = entManager.System<SharedMapSystem>();
-            mapSystem.CreateMap(MapId);
-
-            _ = GetPhysicsEntity(entManager, new MapCoordinates(Vector2.Zero, MapId), FixtureLayer, FixtureMask);
-            _ = GetPhysicsEntity(entManager, new MapCoordinates(new Vector2(0.1f, 0f), MapId), FixtureLayer, FixtureMask);
-
-            var state = new FixtureCallbackState { StopAfter = 1 };
-            var completed = lookup.ForEachFixtureIntersecting(
-                MapId,
-                Box2.CenteredAround(Vector2.Zero, Vector2.One),
-                ref state,
-                new CountFixtureCallback(),
-                FixtureQuery());
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(completed, Is.False);
-                Assert.That(state.Count, Is.EqualTo(1));
-            });
-
-            mapSystem.DeleteMap(MapId);
-        }
-
-        [Test]
-        public void TestFixtureShapeQueryUsesNarrowphaseWhenExact()
-        {
-            var sim = RobustServerSimulation.NewSimulation();
-            var server = sim.InitializeInstance();
-
-            var lookup = server.Resolve<IEntitySystemManager>().GetEntitySystem<EntityLookupSystem>();
-            var entManager = server.Resolve<IEntityManager>();
-            var mapSystem = entManager.System<SharedMapSystem>();
-            mapSystem.CreateMap(MapId);
-
-            var target = GetPhysicsEntity(entManager, new MapCoordinates(Vector2.Zero, MapId), FixtureLayer, FixtureMask);
-            var queryShape = new PhysShapeCircle(0.05f);
-            var queryTransform = new Transform(new Vector2(0.39f, 0.39f), 0f);
-
-            var approximate = new HashSet<FixtureProxy>();
-            lookup.GetFixturesIntersecting(
-                MapId,
-                queryShape,
-                queryTransform,
-                approximate,
-                FixtureQuery(approximate: true));
-
-            var exact = new HashSet<FixtureProxy>();
-            lookup.GetFixturesIntersecting(
-                MapId,
-                queryShape,
-                queryTransform,
-                exact,
-                FixtureQuery());
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(approximate.Select(fixture => fixture.Entity), Does.Contain(target));
-                Assert.That(exact.Select(fixture => fixture.Entity), Does.Not.Contain(target));
-            });
-
-            mapSystem.DeleteMap(MapId);
-        }
-
-        [Test]
-        public void TestForEachLocalFixtureIntersectingQueriesBroadphaseEntity()
-        {
-            var sim = RobustServerSimulation.NewSimulation();
-            var server = sim.InitializeInstance();
-
-            var lookup = server.Resolve<IEntitySystemManager>().GetEntitySystem<EntityLookupSystem>();
-            var entManager = server.Resolve<IEntityManager>();
-            var mapSystem = entManager.System<SharedMapSystem>();
-
-            mapSystem.CreateMap(MapId);
-            var grid = SetupGrid(MapId, mapSystem, entManager);
-            var matching = GetPhysicsEntity(entManager, new MapCoordinates(new Vector2(10.5f, 10.5f), MapId), FixtureLayer, FixtureMask);
-
-            var state = new FixtureCallbackState();
-            var completed = lookup.ForEachLocalFixtureIntersecting(
-                grid.Owner,
-                new PhysShapeCircle(0.5f),
-                new Transform(new Vector2(0.5f, 0.5f), 0f),
-                ref state,
-                new CountFixtureCallback(),
-                FixtureQuery());
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(completed, Is.True);
-                Assert.That(state.Count, Is.EqualTo(1));
-                Assert.That(state.LastEntity, Is.EqualTo(matching));
-            });
-
-            mapSystem.DeleteMap(MapId);
-        }
-
-        #endregion
-
         /// <summary>
         /// Is the entity correctly removed / added to EntityLookup when anchored
         /// </summary>
@@ -515,11 +354,12 @@ namespace Robust.UnitTesting.Shared
 
             var lookup = server.Resolve<IEntitySystemManager>().GetEntitySystem<EntityLookupSystem>();
             var entManager = server.Resolve<IEntityManager>();
+            var mapManager = server.Resolve<IMapManager>();
             var mapSystem = entManager.System<SharedMapSystem>();
             var transformSystem = entManager.System<SharedTransformSystem>();
 
             var mapId = server.CreateMap().MapId;
-            var grid = mapSystem.CreateGridEntity(mapId);
+            var grid = mapManager.CreateGridEntity(mapId);
 
             var theMapSpotBeingUsed = new Box2(Vector2.Zero, Vector2.One);
             mapSystem.SetTile(grid, new Vector2i(), new Tile(1));
@@ -544,23 +384,6 @@ namespace Robust.UnitTesting.Shared
             entManager.DeleteEntity(dummy);
             entManager.DeleteEntity(grid);
             mapSystem.DeleteMap(mapId);
-        }
-
-        private struct FixtureCallbackState
-        {
-            public int Count;
-            public int StopAfter;
-            public EntityUid LastEntity;
-        }
-
-        private readonly struct CountFixtureCallback : IFixtureQueryCallback<FixtureCallbackState>
-        {
-            public bool Invoke(ref FixtureCallbackState state, in FixtureProxy fixture)
-            {
-                state.Count++;
-                state.LastEntity = fixture.Entity;
-                return state.StopAfter <= 0 || state.Count < state.StopAfter;
-            }
         }
     }
 }

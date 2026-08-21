@@ -18,8 +18,6 @@ namespace Robust.Client.UserInterface.Controls
     {
         public const string StylePropertyFontColor = "font-color";
         public const string StylePropertyFont = "font";
-        public const string StylePropertyFontOutlineThickness = "font-outline-thickness";
-        public const string StylePropertyFontOutlineColor = "font-outline-color";
         public const string StylePropertyAlignMode = "alignMode";
 
         private int _cachedTextHeight;
@@ -30,14 +28,6 @@ namespace Robust.Client.UserInterface.Controls
         private bool _clipText;
         private AlignMode _align;
         private Font? _fontOverride;
-        private Font? _actualFont;
-        private bool _fontCacheValid;
-        private AlignMode _actualAlign;
-        private bool _alignCacheValid;
-        private float? _outlineThicknessOverride;
-        private Color? _outlineColorOverride;
-        private TextOutline? _actualFontOutline;
-        private bool _fontOutlineCacheValid;
 
         public Label()
         {
@@ -106,28 +96,14 @@ namespace Robust.Client.UserInterface.Controls
         [ViewVariables] public AlignMode Align {
             get
             {
-                if (_alignCacheValid)
-                    return _actualAlign;
-
                 if (TryGetStyleProperty<AlignMode>(StylePropertyAlignMode, out var alignMode))
                 {
-                    _actualAlign = alignMode;
-                    _alignCacheValid = true;
-                    return _actualAlign;
+                    return alignMode;
                 }
 
-                _actualAlign = _align;
-                _alignCacheValid = true;
-                return _actualAlign;
+                return _align;
             }
-            set
-            {
-                if (_align == value)
-                    return;
-
-                _align = value;
-                _alignCacheValid = false;
-            }
+            set => _align = value;
         }
 
         [ViewVariables] public VAlignMode VAlign { get; set; }
@@ -138,7 +114,6 @@ namespace Robust.Client.UserInterface.Controls
             set
             {
                 _fontOverride = value;
-                _fontCacheValid = false;
                 _textDimensionCacheValid = false;
                 InvalidateMeasure();
             }
@@ -148,26 +123,17 @@ namespace Robust.Client.UserInterface.Controls
         {
             get
             {
-                if (_fontCacheValid)
-                    return _actualFont!;
-
                 if (FontOverride != null)
                 {
-                    _actualFont = FontOverride;
-                    _fontCacheValid = true;
-                    return _actualFont;
+                    return FontOverride;
                 }
 
                 if (TryGetStyleProperty<Font>(StylePropertyFont, out var font))
                 {
-                    _actualFont = font;
-                    _fontCacheValid = true;
-                    return _actualFont;
+                    return font;
                 }
 
-                _actualFont = UserInterfaceManager.ThemeDefaults.LabelFont;
-                _fontCacheValid = true;
-                return _actualFont;
+                return UserInterfaceManager.ThemeDefaults.LabelFont;
             }
         }
 
@@ -199,52 +165,6 @@ namespace Robust.Client.UserInterface.Controls
 
         public int? ShadowOffsetYOverride { get; set; }
 
-        public float? OutlineThicknessOverride
-        {
-            get => _outlineThicknessOverride;
-            set
-            {
-                if (_outlineThicknessOverride == value)
-                    return;
-
-                _outlineThicknessOverride = value;
-                _fontOutlineCacheValid = false;
-            }
-        }
-
-        public Color? OutlineColorOverride
-        {
-            get => _outlineColorOverride;
-            set
-            {
-                if (_outlineColorOverride == value)
-                    return;
-
-                _outlineColorOverride = value;
-                _fontOutlineCacheValid = false;
-            }
-        }
-
-        private TextOutline? ActualFontOutline
-        {
-            get
-            {
-                if (_fontOutlineCacheValid)
-                    return _actualFontOutline;
-
-                var thickness = OutlineThicknessOverride;
-                if (!thickness.HasValue && TryGetStyleProperty<float>(StylePropertyFontOutlineThickness, out var styleThickness))
-                    thickness = styleThickness;
-
-                var color = OutlineColorOverride;
-                if (!color.HasValue && TryGetStyleProperty<Color>(StylePropertyFontOutlineColor, out var styleColor))
-                    color = styleColor;
-
-                _actualFontOutline = TextOutline.FromOverrides(thickness, color);
-                _fontOutlineCacheValid = true;
-                return _actualFontOutline;
-            }
-        }
 
         protected internal override void Draw(DrawingHandleScreen handle)
         {
@@ -279,17 +199,13 @@ namespace Robust.Client.UserInterface.Controls
             var newlines = 0;
             var font = ActualFont;
             var actualFontColor = ActualFontColor;
-            var outline = ActualFontOutline;
-            var align = Align;
-            var ascent = font.GetAscent(UIScale);
-            var lineHeight = font.GetLineHeight(UIScale);
 
             Vector2 CalcBaseline()
             {
                 DebugTools.Assert(_textDimensionCacheValid);
 
                 int hOffset;
-                switch (align)
+                switch (Align)
                 {
                     case AlignMode.Left:
                         hOffset = 0;
@@ -305,43 +221,21 @@ namespace Robust.Client.UserInterface.Controls
                         throw new ArgumentOutOfRangeException();
                 }
 
-                return new Vector2(hOffset, ascent + lineHeight * newlines + vOffset);
+                return new Vector2(hOffset, font.GetAscent(UIScale) + font.GetLineHeight(UIScale) * newlines + vOffset);
             }
 
             var baseLine = CalcBaseline();
 
-            // Outline
-            if (outline is { } outlineSettings)
-            {
-                foreach (var rune in _textMemory.Span.EnumerateRunes())
-                {
-                    if (rune == new Rune('\n'))
-                    {
-                        newlines += 1;
-                        baseLine = CalcBaseline();
-                        continue;
-                    }
-
-                    var advance = font.DrawCharOutline(handle, rune, baseLine, UIScale, outlineSettings);
-                    baseLine.X += advance;
-                }
-
-                newlines = 0;
-                baseLine = CalcBaseline();
-            }
-
-            // Font itself
             foreach (var rune in _textMemory.Span.EnumerateRunes())
             {
                 if (rune == new Rune('\n'))
                 {
                     newlines += 1;
                     baseLine = CalcBaseline();
-                    continue;
                 }
 
                 var advance = font.DrawChar(handle, rune, baseLine, UIScale, actualFontColor);
-                baseLine.X += advance;
+                baseLine += new Vector2(advance, 0);
             }
         }
 
@@ -430,9 +324,6 @@ namespace Robust.Client.UserInterface.Controls
         protected override void StylePropertiesChanged()
         {
             _textDimensionCacheValid = false;
-            _fontOutlineCacheValid = false;
-            _fontCacheValid = false;
-            _alignCacheValid = false;
 
             base.StylePropertiesChanged();
         }

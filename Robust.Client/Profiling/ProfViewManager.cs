@@ -10,10 +10,10 @@ namespace Robust.Client.Profiling;
 /// <summary>
 /// Manager for managing recording and snapshots of profiles, consuming shared <see cref="ProfManager"/>
 /// </summary>
-public sealed partial class ProfViewManager
+public sealed class ProfViewManager
 {
     [Dependency]
-    private ProfManager _profManager = default!;
+    private readonly ProfManager _profManager = default!;
 
     public ValueList<Snapshot> Snapshots;
 
@@ -121,9 +121,9 @@ public sealed partial class ProfViewManager
     }
 }
 
-public sealed partial class ProfSnapshotCommand : LocalizedCommands
+public sealed class ProfSnapshotCommand : LocalizedCommands
 {
-    [Dependency] private ProfViewManager _profView = default!;
+    [Dependency] private readonly ProfViewManager _profView = default!;
 
     // ReSharper disable once StringLiteralTypo
     public override string Command => "profsnap";

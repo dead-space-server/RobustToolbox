@@ -6,7 +6,7 @@ namespace Robust.Shared.IntegrationTests.GameObjects;
 [TestFixture]
 public sealed class EntitySystemManagerUninitializedTests
 {
-    private sealed class DummySystem : EntitySystem;
+    private class DummySystem : EntitySystem;
 
     [Test]
     public void TryDoesNotThrow()

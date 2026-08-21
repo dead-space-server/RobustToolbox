@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Robust.Client.GameObjects;
@@ -20,8 +19,6 @@ namespace Robust.Client.Graphics.Clyde
         {
             private readonly Clyde _clyde;
             private readonly IEntityManager _entities;
-            private readonly ClydeTexture _whiteClydeTexture;
-            private readonly Box2 _whiteUv;
 
             public DrawingHandleScreen DrawingHandleScreen { get; }
             public DrawingHandleWorld DrawingHandleWorld { get; }
@@ -32,8 +29,6 @@ namespace Robust.Client.Graphics.Clyde
                 _entities = entities;
 
                 var white = _clyde.GetStockTexture(ClydeStockTexture.White);
-                _whiteClydeTexture = ExtractTexture(white, null, out var whiteBounds);
-                _whiteUv = WorldTextureBoundsToUV(_whiteClydeTexture, whiteBounds);
                 DrawingHandleScreen = new DrawingHandleScreenImpl(white, this);
                 DrawingHandleWorld = new DrawingHandleWorldImpl(white, this);
             }
@@ -68,26 +63,12 @@ namespace Robust.Client.Graphics.Clyde
             public void DrawTextureScreen(Texture texture, Vector2 bl, Vector2 br, Vector2 tl, Vector2 tr,
                 in Color modulate, in UIBox2? subRegion)
             {
-                if (subRegion == null && texture is AtlasTexture atlas)
-                {
-                    DrawTextureScreen(atlas, bl, br, tl, tr, in modulate);
-                    return;
-                }
-
                 var clydeTexture = ExtractTexture(texture, in subRegion, out var csr);
 
                 var (w, h) = clydeTexture.Size;
-                var sr = new Box2(csr.Left / w, (h - csr.Bottom) / h, csr.Right / w, (h - csr.Top) / h);
+                var sr = new Box2(csr.Left / w, (h - csr.Top) / h, csr.Right / w, (h - csr.Bottom) / h);
 
                 _clyde.DrawTexture(clydeTexture.TextureId, bl, br, tl, tr, in modulate, in sr);
-            }
-
-            public void DrawTextureScreen(AtlasTexture texture, Vector2 bl, Vector2 br, Vector2 tl, Vector2 tr,
-                in Color modulate)
-            {
-                var texCoords = texture.NormalizedSubRegion;
-                _clyde.DrawTexture(texture.ClydeTexture!.TextureId, bl, br, tl, tr, in modulate,
-                    in texCoords);
             }
 
             /// <summary>
@@ -105,76 +86,11 @@ namespace Robust.Client.Graphics.Clyde
             public void DrawTextureWorld(Texture texture, Vector2 bl, Vector2 br, Vector2 tl, Vector2 tr,
                 Color modulate, in UIBox2? subRegion)
             {
-                if (subRegion == null && texture is AtlasTexture atlas)
-                {
-                    DrawTextureWorld(atlas, bl, br, tl, tr, modulate);
-                    return;
-                }
-
                 var clydeTexture = ExtractTexture(texture, in subRegion, out var csr);
 
                 var sr = WorldTextureBoundsToUV(clydeTexture, csr);
 
                 _clyde.DrawTexture(clydeTexture.TextureId, bl, br, tl, tr, in modulate, in sr);
-            }
-
-            public void DrawTextureWorld(AtlasTexture texture, Vector2 bl, Vector2 br, Vector2 tl, Vector2 tr,
-                Color modulate)
-            {
-                var texCoords = texture.NormalizedSubRegion;
-                _clyde.DrawTexture(texture.ClydeTexture!.TextureId, bl, br, tl, tr, in modulate,
-                    in texCoords);
-            }
-
-            public void DrawTextureWorldBatch(Texture texture, ReadOnlySpan<WorldTextureRect> rects, Color modulate)
-            {
-                if (texture is AtlasTexture atlas)
-                {
-                    DrawTextureWorldBatch(atlas, rects, modulate);
-                    return;
-                }
-
-                var clydeTexture = ExtractTexture(texture, null, out var csr);
-                var sr = WorldTextureBoundsToUV(clydeTexture, csr);
-                _clyde.DrawTextureBatch(clydeTexture.TextureId, rects, modulate, in sr);
-            }
-
-            public void DrawTextureWorldBatch(AtlasTexture texture, ReadOnlySpan<WorldTextureRect> rects,
-                Color modulate)
-            {
-                var texCoords = texture.NormalizedSubRegion;
-                _clyde.DrawTextureBatch(texture.ClydeTexture!.TextureId, rects, modulate,
-                    in texCoords);
-            }
-
-            public void DrawTextureWorldBatchUnmodulated(Texture texture, ReadOnlySpan<WorldTextureRect> rects)
-            {
-                if (texture is AtlasTexture atlas)
-                {
-                    DrawTextureWorldBatchUnmodulated(atlas, rects);
-                    return;
-                }
-
-                var clydeTexture = ExtractTexture(texture, null, out var csr);
-                var sr = WorldTextureBoundsToUV(clydeTexture, csr);
-                _clyde.DrawTextureBatchUnmodulated(clydeTexture.TextureId, rects, in sr);
-            }
-
-            public void DrawTextureWorldBatchUnmodulated(AtlasTexture texture, ReadOnlySpan<WorldTextureRect> rects)
-            {
-                var texCoords = texture.NormalizedSubRegion;
-                _clyde.DrawTextureBatchUnmodulated(texture.ClydeTexture!.TextureId, rects,
-                    in texCoords);
-            }
-
-            public void DrawRectWorldBatch(ReadOnlySpan<WorldRect> rects, Color modulate)
-            {
-                _clyde.DrawRectBatch(_whiteClydeTexture.TextureId, rects, modulate, in _whiteUv);
-            }
-
-            public void DrawRectWorldBatchUnmodulated(ReadOnlySpan<WorldRect> rects)
-            {
-                _clyde.DrawRectBatchUnmodulated(_whiteClydeTexture.TextureId, rects, in _whiteUv);
             }
 
             internal static Box2 WorldTextureBoundsToUV(ClydeTexture texture, UIBox2 csr)
@@ -190,6 +106,7 @@ namespace Robust.Client.Graphics.Clyde
             {
                 if (texture is AtlasTexture atlas)
                 {
+                    texture = atlas.SourceTexture;
                     if (subRegion.HasValue)
                     {
                         var offset = atlas.SubRegion.TopLeft;
@@ -201,12 +118,14 @@ namespace Robust.Client.Graphics.Clyde
                     {
                         sr = atlas.SubRegion;
                     }
-
-                    return atlas.ClydeTexture!;
+                }
+                else
+                {
+                    sr = subRegion ?? new UIBox2(0, 0, texture.Width, texture.Height);
                 }
 
-                sr = subRegion ?? new UIBox2(0, 0, texture.Width, texture.Height);
-                return (ClydeTexture) texture;
+                var clydeTexture = (ClydeTexture) texture;
+                return clydeTexture;
             }
 
             public void RenderInRenderTarget(IRenderTarget target, Action a, Color? clearColor)
@@ -244,8 +163,7 @@ namespace Robust.Client.Graphics.Clyde
                 Direction? overrideDirection = null,
                 SpriteComponent? sprite = null,
                 TransformComponent? xform = null,
-                SharedTransformSystem? xformSystem = null,
-                IReadOnlyList<SpriteComponent.PostShaderEntry>? postShaders = null)
+                SharedTransformSystem? xformSystem = null)
             {
                 if (_entities.Deleted(entity))
                 {
@@ -254,40 +172,12 @@ namespace Robust.Client.Graphics.Clyde
 
                 sprite ??= _entities.GetComponent<SpriteComponent>(entity);
 
-                if (worldRot == null)
-                {
-                    xformSystem ??= _entities.System<SharedTransformSystem>();
-                    var query = _entities.GetEntityQuery<TransformComponent>();
-                    xform ??= query.GetComponent(entity);
-                    worldRot = xformSystem.GetWorldRotation(xform, query);
-                }
-
-                if (postShaders is { Count: > 0 })
-                {
-                    DrawEntityPostShaders(entity, position, scale, worldRot.Value, eyeRot, overrideDirection, sprite, postShaders);
-                    return;
-                }
-
-                DrawEntityRaw(entity, position, scale, worldRot.Value, eyeRot, overrideDirection, sprite);
-            }
-
-            private void DrawEntityRaw(
-                EntityUid entity,
-                Vector2 position,
-                Vector2 scale,
-                Angle worldRot,
-                Angle eyeRot,
-                Direction? overrideDirection,
-                SpriteComponent sprite,
-                bool applyModelTranslation = true)
-            {
                 var oldProj = _clyde._currentMatrixProj;
                 var oldView = _clyde._currentMatrixView;
                 var oldModel = _clyde._currentMatrixModel;
 
                 var newModel = oldModel;
-                if (applyModelTranslation)
-                    position += new Vector2(oldModel.M31, oldModel.M32);
+                position += new Vector2(oldModel.M31, oldModel.M32);
                 newModel.M31 = 0;
                 newModel.M32 = 0;
                 SetModelTransform(newModel);
@@ -308,151 +198,24 @@ namespace Robust.Client.Graphics.Clyde
                     SetProjView(proj, view);
                 }
 
+                if (worldRot == null)
+                {
+                    xformSystem ??= _entities.System<SharedTransformSystem>();
+                    var query = _entities.GetEntityQuery<TransformComponent>();
+                    xform ??= query.GetComponent(entity);
+                    worldRot = xformSystem.GetWorldRotation(xform, query);
+                }
+
                 // Draw the entity.
                 sprite.Render(
                     DrawingHandleWorld,
                     eyeRot,
-                    worldRot,
+                    worldRot.Value,
                     overrideDirection);
 
                 // Reset to screen space
                 SetProjView(oldProj, oldView);
                 SetModelTransform(oldModel);
-            }
-
-            private void DrawEntityPostShaders(
-                EntityUid entity,
-                Vector2 position,
-                Vector2 scale,
-                Angle worldRot,
-                Angle eyeRot,
-                Direction? overrideDirection,
-                SpriteComponent sprite,
-                IReadOnlyList<SpriteComponent.PostShaderEntry> postShaders)
-            {
-                var oldModel = _clyde._currentMatrixModel;
-                var finalPosition = position + new Vector2(oldModel.M31, oldModel.M32);
-                var screenScale = scale * new Vector2(EyeManager.PixelsPerMeter, -EyeManager.PixelsPerMeter);
-
-                if (screenScale.X == 0 || screenScale.Y == 0 ||
-                    !_clyde._currentRenderTarget.Instance.TryGetTarget(out var finalTarget))
-                {
-                    DrawEntityRaw(entity, position, scale, worldRot, eyeRot, overrideDirection, sprite);
-                    return;
-                }
-
-                var spriteSystem = _entities.System<SpriteSystem>();
-                var finalRotation = sprite.NoRotation
-                    ? sprite.Rotation
-                    : sprite.Rotation + worldRot + eyeRot;
-                var screenCenter = finalPosition / screenScale;
-                if (sprite.Offset != Vector2.Zero)
-                {
-                    var spriteOffset = sprite.NoRotation
-                        ? (-eyeRot).RotateVec(sprite.Offset)
-                        : worldRot.RotateVec(sprite.Offset);
-                    screenCenter += eyeRot.RotateVec(spriteOffset);
-                }
-
-                var spriteScreenBounds = Clyde.TransformCenteredBox(
-                    spriteSystem.GetLocalBounds((entity, sprite)),
-                    (float) finalRotation.Theta,
-                    screenCenter,
-                    screenScale);
-                var entityPostRenderTargetSize = Clyde.GetPostShaderTargetSize(spriteScreenBounds);
-                var entityPostRenderTarget = _clyde.RentPostShaderRenderTarget(entityPostRenderTargetSize);
-
-                if (entityPostRenderTarget == null)
-                {
-                    DrawEntityRaw(entity, position, scale, worldRot, eyeRot, overrideDirection, sprite);
-                    return;
-                }
-
-                RenderTexture? entityPostRenderTarget2 = null;
-                try
-                {
-                    entityPostRenderTarget2 = postShaders.Count > 1
-                        ? _clyde.RentPostShaderRenderTarget(entityPostRenderTargetSize)
-                        : null;
-
-                    if (PostShadersNeedScreenTexture(postShaders))
-                    {
-                        if (finalTarget is not RenderTexture screenTarget)
-                        {
-                            DrawEntityRaw(entity, position, scale, worldRot, eyeRot, overrideDirection, sprite);
-                            return;
-                        }
-
-                        _clyde.FlushRenderQueue();
-                        var screenTexture = _clyde.CopyScreenTexture(screenTarget);
-                        if (screenTexture == null)
-                        {
-                            DrawEntityRaw(entity, position, scale, worldRot, eyeRot, overrideDirection, sprite);
-                            return;
-                        }
-
-                        foreach (var postShader in postShaders)
-                        {
-                            if (postShader.GetScreenTexture)
-                                postShader.Shader.SetParameter("SCREEN_TEXTURE", screenTexture);
-                        }
-                    }
-
-                    UseRenderTarget(entityPostRenderTarget);
-                    Clear(default, 0, ClearBufferMask.ColorBufferBit | ClearBufferMask.StencilBufferBit);
-                    Viewport(Box2i.FromDimensions(Vector2i.Zero, entityPostRenderTarget.Size));
-
-                    var sourcePosition = finalPosition + entityPostRenderTarget.Size / 2f - spriteScreenBounds.Center;
-                    DrawEntityRaw(entity, sourcePosition, scale, worldRot, eyeRot, overrideDirection, sprite, false);
-
-                    var oldProj = _clyde._currentMatrixProj;
-                    var oldView = _clyde._currentMatrixView;
-                    _clyde.DrawEntityPostShaders(
-                        finalTarget,
-                        finalTarget.Size,
-                        (Vector2i) spriteScreenBounds.Center,
-                        entityPostRenderTargetSize,
-                        entityPostRenderTarget,
-                        entityPostRenderTarget2,
-                        postShaders);
-
-                    SetProjView(oldProj, oldView);
-                    UseShader(null);
-                    SetModelTransform(oldModel);
-                }
-                finally
-                {
-                    if (entityPostRenderTarget2 != null)
-                        _clyde.ReturnPostShaderRenderTarget(entityPostRenderTarget2);
-
-                    _clyde.ReturnPostShaderRenderTarget(entityPostRenderTarget);
-                }
-            }
-
-            public void RenderSpritePostShaders(
-                Entity<SpriteComponent> sprite,
-                IReadOnlyList<SpriteComponent.PostShaderEntry> postShaders,
-                Angle eyeRotation,
-                Angle worldRotation,
-                Vector2 worldPosition,
-                Direction? overrideDirection)
-            {
-                if (_clyde._currentViewport is not { } viewport)
-                    throw new InvalidOperationException("Post-shader sprites must be rendered with a viewport.");
-
-                var spriteSystem = _entities.System<SpriteSystem>();
-                var screenBounds = viewport.GetWorldToLocalMatrix().TransformBox(
-                    spriteSystem.CalculateBounds(sprite, worldPosition, worldRotation, eyeRotation));
-
-                _clyde.RenderSpritePostShaders(
-                    sprite,
-                    postShaders,
-                    eyeRotation,
-                    worldRotation,
-                    worldPosition,
-                    overrideDirection,
-                    screenBounds,
-                    spriteSystem);
             }
 
             public void DrawLine(Vector2 a, Vector2 b, Color color)
@@ -595,18 +358,13 @@ namespace Robust.Client.Graphics.Clyde
                     Color? modulate = null)
                 {
                     var color = (modulate ?? Color.White) * Modulate;
-                    _renderHandle.DrawTextureScreen(texture, rect.BottomLeft, rect.BottomRight,
-                        rect.TopLeft, rect.TopRight, color, subRegion);
+                    _renderHandle.DrawTextureScreen(texture, rect.TopLeft, rect.TopRight,
+                        rect.BottomLeft, rect.BottomRight, color, subRegion);
                 }
 
                 public override void DrawTexture(Texture texture, Vector2 position, Color? modulate = null)
                 {
-                    CheckDisposed();
-
-                    var color = (modulate ?? Color.White) * Modulate;
-                    var rect = UIBox2.FromDimensions(position, texture.Size);
-                    _renderHandle.DrawTextureScreen(texture, rect.BottomLeft, rect.BottomRight,
-                        rect.TopLeft, rect.TopRight, color, null);
+                    base.DrawTexture(texture, position, modulate);
                 }
 
                 /// <summary>
@@ -730,16 +488,6 @@ namespace Robust.Client.Graphics.Clyde
                     }
                 }
 
-                public override void DrawRects(ReadOnlySpan<WorldRect> rects)
-                {
-                    _renderHandle.DrawRectWorldBatch(rects, Modulate);
-                }
-
-                public override void DrawRectsUnmodulated(ReadOnlySpan<WorldRect> rects)
-                {
-                    _renderHandle.DrawRectWorldBatchUnmodulated(rects);
-                }
-
                 public override void DrawRect(in Box2Rotated rect, Color color, bool filled = true)
                 {
                     if (filled)
@@ -748,12 +496,10 @@ namespace Robust.Client.Graphics.Clyde
                     }
                     else
                     {
-                        rect.GetCorners(out var bottomLeft, out var bottomRight, out var topRight, out var topLeft);
-
-                        DrawLine(topLeft, topRight, color);
-                        DrawLine(topRight, bottomRight, color);
-                        DrawLine(bottomRight, bottomLeft, color);
-                        DrawLine(bottomLeft, topLeft, color);
+                        DrawLine(rect.TopLeft, rect.TopRight, color);
+                        DrawLine(rect.TopRight, rect.BottomRight, color);
+                        DrawLine(rect.BottomRight, rect.BottomLeft, color);
+                        DrawLine(rect.BottomLeft, rect.TopLeft, color);
                     }
                 }
 
@@ -775,15 +521,6 @@ namespace Robust.Client.Graphics.Clyde
                         quad.TopLeft, quad.TopRight, color, in subRegion);
                 }
 
-                public override void DrawTextureRect(AtlasTexture texture, Box2 quad, Color? modulate = null)
-                {
-                    CheckDisposed();
-
-                    var color = (modulate ?? Color.White) * Modulate;
-                    _renderHandle.DrawTextureWorld(texture, quad.BottomLeft, quad.BottomRight,
-                        quad.TopLeft, quad.TopRight, color);
-                }
-
                 /// <summary>
                 /// Draws a sprite to the world. The coordinate system is right handed.
                 /// Make sure to set <see cref="DrawSetModelTransform"/>
@@ -797,38 +534,9 @@ namespace Robust.Client.Graphics.Clyde
                     Color? modulate = null, UIBox2? subRegion = null)
                 {
                     var color = (modulate ?? Color.White) * Modulate;
-                    quad.GetCorners(out var bottomLeft, out var bottomRight, out var topRight, out var topLeft);
 
-                    _renderHandle.DrawTextureWorld(texture, bottomLeft, bottomRight, topLeft, topRight, color, in subRegion);
-                }
-
-                /// <inheritdoc />
-                public override void DrawTextureRects(Texture texture, ReadOnlySpan<WorldTextureRect> rects)
-                {
-                    _renderHandle.DrawTextureWorldBatch(texture, rects, Modulate);
-                }
-
-                /// <inheritdoc />
-                public override void DrawTextureRectsUnmodulated(Texture texture, ReadOnlySpan<WorldTextureRect> rects)
-                {
-                    _renderHandle.DrawTextureWorldBatchUnmodulated(texture, rects);
-                }
-
-                public override void RenderSpritePostShaders(
-                    Entity<SpriteComponent> sprite,
-                    IReadOnlyList<SpriteComponent.PostShaderEntry> postShaders,
-                    Angle eyeRotation,
-                    Angle worldRotation,
-                    Vector2 worldPosition,
-                    Direction? overrideDirection)
-                {
-                    _renderHandle.RenderSpritePostShaders(
-                        sprite,
-                        postShaders,
-                        eyeRotation,
-                        worldRotation,
-                        worldPosition,
-                        overrideDirection);
+                    _renderHandle.DrawTextureWorld(texture, quad.BottomLeft, quad.BottomRight,
+                        quad.TopLeft, quad.TopRight, color, in subRegion);
                 }
 
                 public override void DrawPrimitives(DrawPrimitiveTopology primitiveTopology, Texture texture,

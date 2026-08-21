@@ -39,6 +39,7 @@ internal sealed partial class DeferredEntityDeletionTest : RobustIntegrationTest
 
         await server.WaitAssertion(() =>
         {
+            var mapMan = IoCManager.Resolve<IMapManager>();
             entMan = IoCManager.Resolve<IEntityManager>();
             var sys = entMan.EntitySysManager.GetEntitySystem<DeferredDeletionTestSystem>();
 

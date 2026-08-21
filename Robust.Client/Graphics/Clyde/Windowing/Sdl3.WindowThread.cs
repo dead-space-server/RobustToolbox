@@ -105,10 +105,6 @@ internal partial class Clyde
                     WinThreadWinSetVisible(cmd);
                     break;
 
-                case CmdWinSetRelativeMouseMode cmd:
-                    WinThreadWinSetRelativeMouseMode(cmd);
-                    break;
-
                 case CmdCursorCreate cmd:
                     WinThreadCursorCreate(cmd);
                     break;
@@ -287,12 +283,6 @@ internal partial class Clyde
         {
             public nint Window;
             public bool Visible;
-        }
-
-        private sealed class CmdWinSetRelativeMouseMode : CmdBase
-        {
-            public nint Window;
-            public bool Enabled;
         }
 
         private sealed class CmdWinSetTitle : CmdBase

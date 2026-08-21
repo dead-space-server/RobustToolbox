@@ -59,7 +59,7 @@ public sealed partial class VerticalTabContainer : BoxContainer
     {
         if (_tabs.Remove(child, out var button))
         {
-            button.Orphan();
+            button.Dispose();
         }
 
         // Set the current tab to a different control

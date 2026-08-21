@@ -17,12 +17,13 @@ namespace Robust.UnitTesting.Shared.Map
             await server.WaitIdleAsync();
 
             var entManager = server.ResolveDependency<IEntityManager>();
+            var mapManager = server.ResolveDependency<IMapManager>();
             var mapSystem = entManager.EntitySysManager.GetEntitySystem<SharedMapSystem>();
 
             await server.WaitAssertion(() =>
             {
                 entManager.System<SharedMapSystem>().CreateMap(out var mapId);
-                var grid = mapSystem.CreateGridEntity(mapId);
+                var grid = mapManager.CreateGridEntity(mapId);
                 var gridEntity = grid.Owner;
 
                 for (var i = 0; i < 10; i++)
@@ -55,12 +56,13 @@ namespace Robust.UnitTesting.Shared.Map
             await server.WaitIdleAsync();
 
             var entManager = server.ResolveDependency<IEntityManager>();
+            var mapManager = server.ResolveDependency<IMapManager>();
             var mapSystem = entManager.System<SharedMapSystem>();
 
             await server.WaitAssertion(() =>
             {
                 entManager.System<SharedMapSystem>().CreateMap(out var mapId);
-                var grid = mapSystem.CreateGridEntity(mapId);
+                var grid = mapManager.CreateGridEntity(mapId);
 
                 for (var i = 0; i < 10; i++)
                 {

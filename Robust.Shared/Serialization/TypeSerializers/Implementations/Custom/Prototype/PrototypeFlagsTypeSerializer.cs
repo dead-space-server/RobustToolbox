@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Robust.Shared.IoC;
@@ -15,10 +14,8 @@ using Robust.Shared.Utility;
 
 namespace Robust.Shared.Serialization.TypeSerializers.Implementations.Custom.Prototype
 {
-    [Obsolete("Use a hashset of ProtoId instead")]
     [TypeSerializer]
     public sealed class PrototypeFlagsTypeSerializer<T> :
-        BaseTypeSerializer,
         ITypeSerializer<PrototypeFlags<T>, SequenceDataNode>,
         ITypeSerializer<PrototypeFlags<T>, ValueDataNode>,
         ITypeCopyCreator<PrototypeFlags<T>>,
@@ -50,7 +47,8 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations.Custom.Pro
         {
             if (instanceProvider != null)
             {
-                Log.Warning($"Provided value to a Read-call for a {nameof(PrototypeFlags<T>)}. Ignoring...");
+                var sawmill = dependencies.Resolve<ILogManager>().GetSawmill("szr");
+                sawmill.Warning($"Provided value to a Read-call for a {nameof(PrototypeFlags<T>)}. Ignoring...");
             }
 
             var flags = new List<string>(node.Sequence.Count);
@@ -84,7 +82,10 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations.Custom.Pro
             ISerializationManager.InstantiationDelegate<PrototypeFlags<T>>? instanceProvider = null)
         {
             if (instanceProvider != null)
-                Log.Warning($"Provided value to a Read-call for a {nameof(PrototypeFlags<T>)}. Ignoring...");
+            {
+                var sawmill = dependencies.Resolve<ILogManager>().GetSawmill("szr");
+                sawmill.Warning($"Provided value to a Read-call for a {nameof(PrototypeFlags<T>)}. Ignoring...");
+            }
 
             return new PrototypeFlags<T>(node.Value);
         }

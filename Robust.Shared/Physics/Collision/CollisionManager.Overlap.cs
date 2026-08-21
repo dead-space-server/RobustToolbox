@@ -12,31 +12,14 @@ internal sealed partial class CollisionManager
     /// <param name="xfA">The transform for the first shape.</param>
     /// <param name="xfB">The transform for the seconds shape.</param>
     /// <returns></returns>
-    public bool TestOverlap<T, U>(
-        T shapeA,
-        int indexA,
-        U shapeB,
-        int indexB,
-        in Transform xfA,
-        in Transform xfB,
-        bool ignoreShapeSkin = false)
+    public bool TestOverlap<T, U>(T shapeA, int indexA, U shapeB, int indexB, in Transform xfA, in Transform xfB)
         where T : IPhysShape
         where U : IPhysShape
     {
         var input = new DistanceInput();
 
-        input.ProxyA.Set(in shapeA, indexA);
-        input.ProxyB.Set(in shapeB, indexB);
-
-        if (ignoreShapeSkin)
-        {
-            if (shapeA.ShapeType != ShapeType.Circle)
-                input.ProxyA.Radius = 0f;
-
-            if (shapeB.ShapeType != ShapeType.Circle)
-                input.ProxyB.Radius = 0f;
-        }
-
+        input.ProxyA.Set(shapeA, indexA);
+        input.ProxyB.Set(shapeB, indexB);
         input.TransformA = xfA;
         input.TransformB = xfB;
         input.UseRadii = true;

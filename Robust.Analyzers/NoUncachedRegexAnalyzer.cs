@@ -37,19 +37,10 @@ public sealed class NoUncachedRegexAnalyzer : DiagnosticAnalyzer
     {
         context.EnableConcurrentExecution();
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
-        context.RegisterCompilationStartAction(compilationContext =>
-        {
-            var regexType = compilationContext.Compilation.GetTypeByMetadataName(RegexType);
-            if (regexType is null)
-                return;
-
-            compilationContext.RegisterOperationAction(
-                operationContext => CheckInvocation(operationContext, regexType),
-                OperationKind.Invocation);
-        });
+        context.RegisterOperationAction(CheckInvocation, OperationKind.Invocation);
     }
 
-    private static void CheckInvocation(OperationAnalysisContext context, INamedTypeSymbol regexType)
+    private static void CheckInvocation(OperationAnalysisContext context)
     {
         if (context.Operation is not IInvocationOperation invocation)
             return;
@@ -63,6 +54,7 @@ public sealed class NoUncachedRegexAnalyzer : DiagnosticAnalyzer
         if (targetMethod.ContainingType.Name != "Regex")
             return;
 
+        var regexType = context.Compilation.GetTypeByMetadataName(RegexType);
         if (!SymbolEqualityComparer.Default.Equals(regexType, targetMethod.ContainingType))
             return;
 

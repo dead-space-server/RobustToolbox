@@ -167,11 +167,6 @@ namespace Robust.Client.Graphics.Clyde
                 {
                     GL.Finish();
                 }
-                else if (Clyde._hasGLFenceSync)
-                {
-                    // Submit the fences before the secondary contexts wait on them.
-                    GL.Flush();
-                }
 
                 if (Clyde.EffectiveThreadWindowBlit)
                 {

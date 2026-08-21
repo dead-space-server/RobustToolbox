@@ -31,13 +31,12 @@ internal sealed partial class EntityEventBusTests
             .InitializeInstance();
 
         var map = simulation.CreateMap().MapId;
-        var entMan = simulation.Resolve<IEntityManager>();
 
-        var entity = entMan.Spawn(null, new MapCoordinates(0, 0, map));
-        entMan.AddComponent<FooComponent>(entity);
+        var entity = simulation.SpawnEntity(null, new MapCoordinates(0, 0, map));
+        simulation.Resolve<IEntityManager>().AddComponent<FooComponent>(entity);
 
         var foo = new FooEvent();
-        entMan.EventBus.RaiseLocalEvent(entity, foo, true);
+        simulation.Resolve<IEntityManager>().EventBus.RaiseLocalEvent(entity, foo, true);
 
         Assert.That(foo.EventOrder, Is.EquivalentTo(new[]{"Foo", "Transform", "Metadata"}).Or.EquivalentTo(new[]{"Foo", "Metadata", "Transform"}));
     }

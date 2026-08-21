@@ -19,13 +19,14 @@ namespace Robust.Shared.ComponentTrees;
 ///     Keeps track of <see cref="DynamicTree{T}"/>s for various rendering-related components.
 /// </summary>
 [UsedImplicitly]
-public abstract partial class ComponentTreeSystem<TTreeComp, TComp> : EntitySystem
+public abstract class ComponentTreeSystem<TTreeComp, TComp> : EntitySystem
     where TTreeComp : Component, IComponentTreeComponent<TComp>, new()
     where TComp : Component, IComponentTreeEntry<TComp>
 {
-    [Dependency] private RecursiveMoveSystem _recursiveMoveSys = default!;
-    [Dependency] protected SharedTransformSystem XformSystem = default!;
-    [Dependency] private SharedMapSystem _mapSystem = default!;
+    [Dependency] private readonly RecursiveMoveSystem _recursiveMoveSys = default!;
+    [Dependency] protected readonly SharedTransformSystem XformSystem = default!;
+    [Dependency] private readonly IMapManager _mapManager = default!;
+    [Dependency] private readonly SharedMapSystem _mapSystem = default!;
 
     private readonly Queue<ComponentTreeEntry<TComp>> _updateQueue = new();
     protected EntityQuery<TComp> Query;
@@ -75,13 +76,8 @@ public abstract partial class ComponentTreeSystem<TTreeComp, TComp> : EntitySyst
         SubscribeLocalEvent<MapCreatedEvent>(MapManagerOnMapCreated);
         SubscribeLocalEvent<GridInitializeEvent>(MapManagerOnGridCreated);
 
-        // Yipeee point light
-        if (!typeof(TComp).IsAbstract)
-        {
-            SubscribeLocalEvent<TComp, ComponentStartup>(OnCompStartup);
-            SubscribeLocalEvent<TComp, ComponentRemove>(OnCompRemoved);
-            Query = GetEntityQuery<TComp>();
-        }
+        SubscribeLocalEvent<TComp, ComponentStartup>(OnCompStartup);
+        SubscribeLocalEvent<TComp, ComponentRemove>(OnCompRemoved);
 
         if (Recursive)
         {
@@ -98,6 +94,8 @@ public abstract partial class ComponentTreeSystem<TTreeComp, TComp> : EntitySyst
         SubscribeLocalEvent<TTreeComp, EntityTerminatingEvent>(OnTerminating);
         SubscribeLocalEvent<TTreeComp, ComponentAdd>(OnTreeAdd);
         SubscribeLocalEvent<TTreeComp, ComponentRemove>(OnTreeRemove);
+
+        Query = GetEntityQuery<TComp>();
     }
 
     public override void Shutdown()
@@ -128,14 +126,7 @@ public abstract partial class ComponentTreeSystem<TTreeComp, TComp> : EntitySyst
     }
 
     private void HandleMove(EntityUid uid, TComp component, ref MoveEvent args)
-    {
-        QueueTreeUpdate(uid, component, args.Component);
-        OnComponentMove(uid, component, ref args);
-    }
-
-    protected virtual void OnComponentMove(EntityUid uid, TComp component, ref MoveEvent args)
-    {
-    }
+        => QueueTreeUpdate(uid, component, args.Component);
 
     public void QueueTreeUpdate(EntityUid uid, TComp component, TransformComponent? xform = null)
     {
@@ -251,9 +242,9 @@ public abstract partial class ComponentTreeSystem<TTreeComp, TComp> : EntitySyst
                 {
                     (pos, rot) = XformSystem.GetRelativePositionRotation(
                         entry.Transform,
-                        newTree.Value);
+                        newTree!.Value);
 
-                    newTreeComp?.Tree.Update(entry, ExtractAabb(entry, pos, rot));
+                    newTreeComp!.Tree.Update(entry, ExtractAabb(entry, pos, rot));
                     continue;
                 }
 
@@ -267,7 +258,7 @@ public abstract partial class ComponentTreeSystem<TTreeComp, TComp> : EntitySyst
 
                 (pos, rot) = XformSystem.GetRelativePositionRotation(
                     entry.Transform,
-                    newTree.Value);
+                    newTree!.Value);
 
                 newTreeComp.Tree.Add(entry, ExtractAabb(entry, pos, rot));
             }
@@ -303,30 +294,25 @@ public abstract partial class ComponentTreeSystem<TTreeComp, TComp> : EntitySyst
     #endregion
 
     #region Queries
-    public ValueList<(EntityUid Uid, TTreeComp Comp)> GetIntersectingTrees(MapId mapId, Box2Rotated worldBounds)
+    public IEnumerable<(EntityUid, TTreeComp)> GetIntersectingTrees(MapId mapId, Box2Rotated worldBounds)
         => GetIntersectingTrees(mapId, worldBounds.CalcBoundingBox());
 
-    public ValueList<(EntityUid Uid, TTreeComp Comp)> GetIntersectingTrees(MapId mapId, Box2 worldAABB)
-        => GetIntersectingTreesInternal(mapId, worldAABB);
-
-    internal ValueList<(EntityUid Uid, TTreeComp Comp)> GetIntersectingTreesInternal(MapId mapId, Box2 worldAABB)
+    public IEnumerable<(EntityUid Uid, TTreeComp Comp)> GetIntersectingTrees(MapId mapId, Box2 worldAABB)
     {
         if (!CheckEnabled())
-            return default;
+            return [];
         // Anything that queries these trees should only do so if there are no queued updates, otherwise it can lead to
-        // errors. Currently, there is no easy way to enforce this, but this should work as long as nothing queries the
+        // errors. Currently there is no easy way to enforce this, but this should work as long as nothing queries the
         // trees directly:
         UpdateTreePositions();
-
         var trees = new ValueList<(EntityUid Uid, TTreeComp Comp)>();
 
         if (mapId == MapId.Nullspace)
             return trees;
 
-        // TODO LOOKUPS pass in entity query, not entity manager.
         var state = (EntityManager, trees);
 
-        _mapSystem.FindGridsIntersecting(mapId, worldAABB, ref state,
+        _mapManager.FindGridsIntersecting(mapId, worldAABB, ref state,
             (EntityUid uid, MapGridComponent grid,
                 ref (EntityManager EntityManager, ValueList<(EntityUid, TTreeComp)> trees) tuple) =>
             {
@@ -338,9 +324,7 @@ public abstract partial class ComponentTreeSystem<TTreeComp, TComp> : EntitySyst
                 return true;
             }, includeMap: false);
 
-        if (_mapSystem.TryGetMap(mapId, out var mapUid)
-            && TryComp(mapUid, out TTreeComp? mapTreeComp)
-            && mapTreeComp.Tree.Count != 0) // TODO LOOKUPS why does space have an occluder tree?
+        if (_mapSystem.TryGetMap(mapId, out var mapUid) && TryComp(mapUid, out TTreeComp? mapTreeComp))
         {
             state.trees.Add((mapUid.Value, mapTreeComp));
         }

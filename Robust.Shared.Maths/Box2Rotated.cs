@@ -94,7 +94,6 @@ namespace Robust.Shared.Maths
         /// <summary>
         /// Calculates the smallest AABB that will encompass the rotated box. The AABB is in local space.
         /// </summary>
-        [Pure]
         public readonly Box2 CalcBoundingBox()
         {
             GetVertices(out var x, out var y);
@@ -114,10 +113,9 @@ namespace Robust.Shared.Maths
 
             var originX = Vector128.Create(Origin.X);
             var originY = Vector128.Create(Origin.Y);
-            var rotTheta = (float) Rotation.Theta;
 
-            var cos = Vector128.Create(MathF.Cos(rotTheta));
-            var sin = Vector128.Create(MathF.Sin(rotTheta));
+            var cos = Vector128.Create((float) Math.Cos(Rotation));
+            var sin = Vector128.Create((float) Math.Sin(Rotation));
 
             var boxX = Vector128.Shuffle(boxVec, Vector128.Create(0, 2, 2, 0)) - originX;
             var boxY = Vector128.Shuffle(boxVec, Vector128.Create(1, 1, 3, 3)) - originY;
@@ -126,25 +124,6 @@ namespace Robust.Shared.Maths
             y = boxX * sin + boxY * cos + originY;
         }
 
-        /// <summary>
-        /// Applies the box rotation to all corners.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public readonly void GetCorners(
-            out Vector2 bottomLeft,
-            out Vector2 bottomRight,
-            out Vector2 topRight,
-            out Vector2 topLeft)
-        {
-            GetVertices(out var x, out var y);
-
-            bottomLeft = new Vector2(x.GetElement(0), y.GetElement(0));
-            bottomRight = new Vector2(x.GetElement(1), y.GetElement(1));
-            topRight = new Vector2(x.GetElement(2), y.GetElement(2));
-            topLeft = new Vector2(x.GetElement(3), y.GetElement(3));
-        }
-
-        [Pure]
         public readonly bool Contains(Vector2 worldPoint)
         {
             // Get the worldpoint in our frame of reference so we can do a faster AABB check.
@@ -155,7 +134,6 @@ namespace Robust.Shared.Maths
         /// <summary>
         /// Convert a point in world-space coordinates to our local coordinates.
         /// </summary>
-        [Pure]
         private readonly Vector2 GetLocalPoint(Vector2 point)
         {
             return Origin + (-Rotation).RotateVec(point - Origin);
@@ -169,7 +147,6 @@ namespace Robust.Shared.Maths
             return Box.Equals(other.Box) && Rotation.Equals(other.Rotation) && Origin.Equals(other.Origin);
         }
 
-        [Pure]
         public readonly bool EqualsApprox(Box2Rotated other)
         {
             return Box.EqualsApprox(other.Box)
@@ -177,7 +154,6 @@ namespace Robust.Shared.Maths
                    && Origin.EqualsApprox(other.Origin);
         }
 
-        [Pure]
         public readonly bool EqualsApprox(Box2Rotated other, double tolerance)
         {
             return Box.EqualsApprox(other.Box, tolerance)
@@ -197,10 +173,7 @@ namespace Robust.Shared.Maths
         {
             unchecked
             {
-                var hashCode = Box.GetHashCode();
-                hashCode = (hashCode * 397) ^ Rotation.GetHashCode();
-                hashCode = (hashCode * 397) ^ Origin.GetHashCode();
-                return hashCode;
+                return (Box.GetHashCode() * 397) ^ Rotation.GetHashCode();
             }
         }
 

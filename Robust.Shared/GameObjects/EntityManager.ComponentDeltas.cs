@@ -5,26 +5,19 @@ namespace Robust.Shared.GameObjects;
 
 public abstract partial class EntityManager
 {
-    public static ulong GetModifiedAspects(IComponentDelta delta, GameTick fromTick)
+    public uint GetModifiedFields(IComponentDelta delta, GameTick fromTick)
     {
-        if (delta.LastUnclassifiedDirty > fromTick)
-        {
-            // By returning max value here, we short-circuit the more expensive evaluation below while returning a value
-            // with the unclassified change bit set. This will over-represent changes, technically, but in this specific
-            // case components should be doing a full update anyway.
-            return ulong.MaxValue;
-        }
+        uint fields = 0;
 
-        ulong fields = 0;
         for (var i = 0; i < delta.LastModifiedFields.Length; i++)
         {
             var lastUpdate = delta.LastModifiedFields[i];
 
             // Field not dirty
-            if (lastUpdate <= fromTick)
+            if (lastUpdate < fromTick)
                 continue;
 
-            fields |= 1UL << i;
+            fields |= (uint) (1 << i);
         }
 
         return fields;
@@ -41,8 +34,9 @@ public abstract partial class EntityManager
         }
 
         var curTick = _gameTiming.CurTick;
+        comp.LastFieldUpdate = curTick;
         comp.LastModifiedFields[idx] = curTick;
-        DirtyInternal(uid, comp, metadata, false);
+        Dirty(uid, comp, metadata);
     }
 
     public virtual void DirtyField<T>(EntityUid uid, T comp, [ValidateMember] string fieldName, MetaDataComponent? metadata = null)
@@ -60,8 +54,9 @@ public abstract partial class EntityManager
         }
 
         var curTick = _gameTiming.CurTick;
+        comp.LastFieldUpdate = curTick;
         comp.LastModifiedFields[idx] = curTick;
-        DirtyInternal(uid, comp, metadata, false);
+        Dirty(uid, comp, metadata);
     }
 
     public virtual void DirtyFields<T>(EntityUid uid, T comp, MetaDataComponent? meta, params string[] fields)
@@ -78,7 +73,8 @@ public abstract partial class EntityManager
                 comp.LastModifiedFields[idx] = curTick;
         }
 
-        DirtyInternal(uid, comp, meta, false);
+        comp.LastFieldUpdate = curTick;
+        Dirty(uid, comp, meta);
     }
 }
 
@@ -87,22 +83,18 @@ public abstract partial class EntityManager
 /// </summary>
 public partial interface IComponentDelta : IComponent
 {
+    // TODO: This isn't entirely robust but not sure how else to handle this?
     /// <summary>
-    /// The last unclassified modification to this component.
+    /// Track last time a field was dirtied. if the full component dirty exceeds this then we send a full state update.
     /// </summary>
-    public GameTick LastUnclassifiedDirty { get; set; }
+    public GameTick LastFieldUpdate { get; set; }
 
     /// <summary>
     /// Stores the last modified tick for fields.
     /// </summary>
-    public GameTick[] LastModifiedFields { get; set; }
-}
-
-/// <summary>
-/// Component delta system aspects. These are flags returned via <see cref="EntityManager.GetModifiedAspects"/>. Fields
-/// occupy the lower bits and grow upwards. System aspects occupy the upper bits and grow downwards.
-/// </summary>
-public static class DeltaAspect
-{
-    public const ulong Unclassified = 1UL << 63;
+    public GameTick[] LastModifiedFields
+    {
+        get;
+        set;
+    }
 }

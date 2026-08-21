@@ -439,20 +439,9 @@ public readonly struct ResPath : IEquatable<ResPath>
 
         if (CanonPath.StartsWith(basePath.CanonPath))
         {
-            var start = basePath.CanonPath.Length;
-            var end = CanonPath.Length;
-
-            while (start < end && CanonPath[start] == '/')
-            {
-                start++;
-            }
-
-            while (end > start && CanonPath[end - 1] == '/')
-            {
-                end--;
-            }
-
-            relative = start == end ? Self : new ResPath(CanonPath[start..end]);
+            var x = CanonPath[basePath.CanonPath.Length..]
+                .Trim('/');
+            relative = x == "" ? Self : new ResPath(x);
             return true;
         }
 

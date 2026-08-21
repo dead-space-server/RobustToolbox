@@ -3,9 +3,9 @@ using Robust.Shared.IoC;
 
 namespace Robust.Server.ServerHub;
 
-internal sealed partial class AdvertiseNowCommand : LocalizedCommands
+internal sealed class AdvertiseNowCommand : LocalizedCommands
 {
-    [Dependency] private HubManager _hubManager = default!;
+    [Dependency] private readonly HubManager _hubManager = default!;
 
     public override string Command => "hub_advertise_now";
 

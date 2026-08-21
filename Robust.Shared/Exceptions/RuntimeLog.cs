@@ -9,9 +9,9 @@ using Robust.Shared.Log;
 
 namespace Robust.Shared.Exceptions
 {
-    internal sealed partial class RuntimeLog : IRuntimeLog, IPostInjectInit
+    internal sealed class RuntimeLog : IRuntimeLog, IPostInjectInit
     {
-        [Dependency] private ILogManager _logManager = default!;
+        [Dependency] private readonly ILogManager _logManager = default!;
 
         private readonly Dictionary<Type, List<LoggedException>> exceptions = new();
         private ISawmill _sawmill = default!;

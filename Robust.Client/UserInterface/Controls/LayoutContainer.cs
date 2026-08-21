@@ -462,19 +462,20 @@ namespace Robust.Client.UserInterface.Controls
         protected override Vector2 MeasureOverride(Vector2 availableSize)
         {
             var min = Vector2.Zero;
+            var uiScale = UIScale;
 
             foreach (var child in Children)
             {
                 var growH = child.GetValue<GrowDirection>(GrowHorizontalProperty);
                 var growV = child.GetValue<GrowDirection>(GrowVerticalProperty);
 
-                var anchorMargins = CalcAnchorMargins(availableSize, child);
+                var anchorMargins = CalcAnchorMargins(availableSize, uiScale, child);
                 var size = availableSize;
                 if (growH == GrowDirection.Constrain)
-                    size.X = anchorMargins.Right - anchorMargins.Left;
+                    size.X = anchorMargins.Width / uiScale;
 
                 if (growV == GrowDirection.Constrain)
-                    size.Y = anchorMargins.Bottom - anchorMargins.Top;
+                    size.Y = anchorMargins.Height / uiScale;
 
                 child.Measure(size);
                 min = Vector2.Max(min, child.DesiredSize);
@@ -487,7 +488,7 @@ namespace Robust.Client.UserInterface.Controls
         {
             foreach (var child in Children)
             {
-                child.Arrange(CalcChildRect(finalSize, child, out _));
+                child.Arrange(CalcChildRect(finalSize, UIScale, child, out _));
             }
 
             return finalSize;
@@ -508,7 +509,7 @@ namespace Robust.Client.UserInterface.Controls
                     continue;
                 }
 
-                var rect = CalcChildRect(Size, child, out var anchorSize);
+                var rect = CalcChildRect(Size, UIScale, child, out var anchorSize);
 
                 var left = rect.Left * UIScale;
                 var right = rect.Right * UIScale;
@@ -541,49 +542,48 @@ namespace Robust.Client.UserInterface.Controls
             }
         }
 
-        private static (float Left, float Top, float Right, float Bottom) CalcAnchorMargins(Vector2 ourSize, Control child)
+        private static UIBox2 CalcAnchorMargins(Vector2 ourSize, float uiScale, Control child)
         {
+            var (pSizeX, pSizeY) = ourSize * uiScale;
+
             var anchorLeft = child.GetValue<float>(AnchorLeftProperty);
             var anchorTop = child.GetValue<float>(AnchorTopProperty);
             var anchorRight = child.GetValue<float>(AnchorRightProperty);
             var anchorBottom = child.GetValue<float>(AnchorBottomProperty);
 
-            var marginLeft = child.GetValue<float>(MarginLeftProperty);
-            var marginTop = child.GetValue<float>(MarginTopProperty);
-            var marginRight = child.GetValue<float>(MarginRightProperty);
-            var marginBottom = child.GetValue<float>(MarginBottomProperty);
+            var marginLeft = child.GetValue<float>(MarginLeftProperty) * uiScale;
+            var marginTop = child.GetValue<float>(MarginTopProperty) * uiScale;
+            var marginRight = child.GetValue<float>(MarginRightProperty) * uiScale;
+            var marginBottom = child.GetValue<float>(MarginBottomProperty) * uiScale;
 
-            var left = anchorLeft * ourSize.X + marginLeft;
-            var top = anchorTop * ourSize.Y + marginTop;
-            var right = anchorRight * ourSize.X + marginRight;
-            var bottom = anchorBottom * ourSize.Y + marginBottom;
+            var left = anchorLeft * pSizeX + marginLeft;
+            var top = anchorTop * pSizeY + marginTop;
+            var right = anchorRight * pSizeX + marginRight;
+            var bottom = anchorBottom * pSizeY + marginBottom;
 
-            // The bounds may be inverted. This is intentional: CalcChildRect uses that negative
-            // size to choose the correct overflow direction before it creates a UIBox2.
+            // Yes, this can return boxes with left > right (and top > bottom).
+            // This is "intentional", see comment in CalcChildRect.
 
-            return (left, top, right, bottom);
+            return new UIBox2(left, top, right, bottom);
         }
 
-        private static UIBox2 CalcChildRect(
-            Vector2 ourSize,
-            Control child,
-            out (float Left, float Top, float Right, float Bottom) anchorSize)
+        private static UIBox2 CalcChildRect(Vector2 ourSize, float uiScale, Control child, out UIBox2 anchorSize)
         {
             // Calculate where the control "wants" to be by its anchors/margins.
             var growHorizontal = child.GetValue<GrowDirection>(GrowHorizontalProperty);
             var growVertical = child.GetValue<GrowDirection>(GrowVerticalProperty);
 
-            anchorSize = CalcAnchorMargins(ourSize, child);
+            anchorSize = CalcAnchorMargins(ourSize, uiScale, child);
 
             // This intentionally results in negatives if the right bound is < the left bound.
             // Which then causes HandleLayoutOverflow to CORRECTLY work from the right bound instead.
             var (wSizeX, wSizeY) = (anchorSize.Right - anchorSize.Left, anchorSize.Bottom - anchorSize.Top);
-            var (minSizeX, minSizeY) = child.DesiredSize;
+            var (minSizeX, minSizeY) = child.DesiredPixelSize;
 
             HandleLayoutOverflow(growHorizontal, minSizeX, anchorSize.Left, wSizeX, out var posX, out var sizeX);
             HandleLayoutOverflow(growVertical, minSizeY, anchorSize.Top, wSizeY, out var posY, out var sizeY);
 
-            return UIBox2.FromDimensions(posX, posY, sizeX, sizeY);
+            return UIBox2.FromDimensions(posX / uiScale, posY / uiScale, sizeX / uiScale, sizeY / uiScale);
         }
 
         private static void HandleLayoutOverflow(GrowDirection direction, float minSize, float wPos, float wSize,

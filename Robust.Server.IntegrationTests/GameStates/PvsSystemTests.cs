@@ -88,9 +88,12 @@ public sealed class PvsSystemTests : RobustIntegrationTest
     [Test]
     public async Task TestMultipleIndexChange()
     {
-        await using var pair = await StartConnectedPair();
-        var (client, server) = pair;
+        var server = StartServer();
+        var client = StartClient();
 
+        await Task.WhenAll(client.WaitIdleAsync(), server.WaitIdleAsync());
+
+        var mapMan = server.ResolveDependency<IMapManager>();
         var sEntMan = server.ResolveDependency<IEntityManager>();
         var confMan = server.ResolveDependency<IConfigurationManager>();
         var sPlayerMan = server.ResolveDependency<ISharedPlayerManager>();
@@ -98,11 +101,18 @@ public sealed class PvsSystemTests : RobustIntegrationTest
         var maps = sEntMan.System<SharedMapSystem>();
 
         var cEntMan = client.ResolveDependency<IEntityManager>();
+        var netMan = client.ResolveDependency<IClientNetManager>();
         var cPlayerMan = client.ResolveDependency<ISharedPlayerManager>();
 
+        Assert.DoesNotThrow(() => client.SetConnectTarget(server));
+        client.Post(() => netMan.ClientConnect(null!, 0, null!));
         server.Post(() => confMan.SetCVar(CVars.NetPVS, true));
 
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         // Set up map and grid
         EntityUid grid = default;
@@ -110,7 +120,7 @@ public sealed class PvsSystemTests : RobustIntegrationTest
         await server.WaitPost(() =>
         {
             map = server.System<SharedMapSystem>().CreateMap(out var mapId);
-            var gridComp = maps.CreateGridEntity(mapId);
+            var gridComp = mapMan.CreateGridEntity(mapId);
             maps.SetTile(gridComp, Vector2i.Zero, new Tile(1));
             grid = gridComp.Owner;
         });
@@ -136,7 +146,11 @@ public sealed class PvsSystemTests : RobustIntegrationTest
             sPlayerMan.JoinGame(session);
         });
 
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         // Check player got properly attached
         await client.WaitPost(() =>
@@ -150,20 +164,35 @@ public sealed class PvsSystemTests : RobustIntegrationTest
         xforms.SetCoordinates(other, otherXform, gridCoords);
 
         // Run for a few ticks. The test just checks that no PVS asserts/errors happen.
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         // Repeat but in the opposite direction ( map -> grid -> map )
         // first move to map and wait a bit.
         xforms.SetCoordinates(other, otherXform, mapCoords);
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         // Move to and off grid in the same tick
         xforms.SetCoordinates(other, otherXform, gridCoords);
         xforms.SetCoordinates(other, otherXform, mapCoords);
 
         // wait for errors.
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
+        await client.WaitPost(() => netMan.ClientDisconnect(""));
+        await server.WaitRunTicks(5);
+        await client.WaitRunTicks(5);
     }
 }
 

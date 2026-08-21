@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using Robust.Shared.Asynchronous;
 using Robust.Shared.ContentPack;
 using Robust.Shared.IoC;
-using Robust.Shared.Localization;
 using Robust.Shared.Log;
 using Robust.Shared.Network;
 using Robust.Shared.Network.Transfer;
@@ -22,7 +21,7 @@ namespace Robust.Shared.Upload;
 ///     Manager that allows resources to be added at runtime by admins.
 ///     They will be sent to all clients automatically.
 /// </summary>
-public abstract partial class SharedNetworkResourceManager : IDisposable, IPostInjectInit
+public abstract class SharedNetworkResourceManager : IDisposable, IPostInjectInit
 {
     /// <summary>
     /// Transfer key for client -> server uploads by privileged clients.
@@ -34,13 +33,12 @@ public abstract partial class SharedNetworkResourceManager : IDisposable, IPostI
     /// </summary>
     internal const string TransferKeyNetworkDownload = "TransferKeyNetworkDownload";
 
-    [Dependency] private IReplayRecordingManager _replay = default!;
-    [Dependency] protected INetManager NetManager = default!;
-    [Dependency] protected IResourceManager ResourceManager = default!;
-    [Dependency] protected ITransferManager TransferManager = default!;
-    [Dependency] protected ILogManager LogManager = default!;
-    [Dependency] protected ILocalizationManager LocalizationManager = default!;
-    [Dependency] private ITaskManager _taskManager = default!;
+    [Dependency] private readonly IReplayRecordingManager _replay = default!;
+    [Dependency] protected readonly INetManager NetManager = default!;
+    [Dependency] protected readonly IResourceManager ResourceManager = default!;
+    [Dependency] protected readonly ITransferManager TransferManager = default!;
+    [Dependency] protected readonly ILogManager LogManager = default!;
+    [Dependency] private readonly ITaskManager _taskManager = default!;
 
     protected ISawmill Sawmill = default!;
 
@@ -114,27 +112,15 @@ public abstract partial class SharedNetworkResourceManager : IDisposable, IPostI
     protected async Task<List<(ResPath Relative, byte[] Data)>> IngestFileStream(Stream stream)
     {
         var list = new List<(ResPath Relative, byte[] Data)>();
-        var anyLoc = false;
 
         await foreach (var (relative, data) in ReadTransferStream(stream).ConfigureAwait(false))
         {
-            if (relative.Extension == "ftl")
-                anyLoc = true;
-
             Sawmill.Verbose($"Storing uploaded file: {relative} ({ByteHelpers.FormatBytes(data.Length)})");
             _taskManager.RunOnMainThread(() =>
             {
                 StoreFile(relative, data);
             });
             list.Add((relative, data));
-        }
-
-        if (anyLoc)
-        {
-            _taskManager.RunOnMainThread(() =>
-            {
-                LocalizationManager.ReloadLocalizations();
-            });
         }
 
         return list;

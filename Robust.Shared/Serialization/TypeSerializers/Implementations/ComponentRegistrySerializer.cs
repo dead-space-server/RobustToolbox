@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using Robust.Shared.Collections;
 using Robust.Shared.GameObjects;
 using Robust.Shared.IoC;
+using Robust.Shared.Log;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Serialization.Manager;
 using Robust.Shared.Serialization.Manager.Attributes;
@@ -18,14 +18,8 @@ using static Robust.Shared.Prototypes.EntityPrototype;
 namespace Robust.Shared.Serialization.TypeSerializers.Implementations
 {
     [TypeSerializer]
-    public sealed partial class ComponentRegistrySerializer : BaseTypeSerializer, ITypeSerializer<ComponentRegistry, SequenceDataNode>, ITypeInheritanceHandler<ComponentRegistry, SequenceDataNode>, ITypeCopier<ComponentRegistry>,
-        IPostInjectInit
+    public sealed class ComponentRegistrySerializer : ITypeSerializer<ComponentRegistry, SequenceDataNode>, ITypeInheritanceHandler<ComponentRegistry, SequenceDataNode>, ITypeCopier<ComponentRegistry>
     {
-        [Dependency] private IDynamicTypeFactory _dynamicTypeFactory = default!;
-        [Dependency] private IComponentFactory _factory = default!;
-
-        private IDynamicTypeFactoryInternal _dynamicTypeFactoryInternal = default!;
-
         public ComponentRegistry Read(ISerializationManager serializationManager,
             SequenceDataNode node,
             IDependencyCollection dependencies,
@@ -33,16 +27,15 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations
             ISerializationContext? context = null,
             ISerializationManager.InstantiationDelegate<ComponentRegistry>? instanceProvider = null)
         {
+            var factory = dependencies.Resolve<IComponentFactory>();
             var components = instanceProvider != null ? instanceProvider() : new ComponentRegistry();
-            var referenceTypes = node.Count <= 1024 ? stackalloc CompIdx[node.Count] : new CompIdx[node.Count];
-            var refIdx = 0;
 
             foreach (var sequenceEntry in node.Sequence)
             {
                 var componentMapping = (MappingDataNode)sequenceEntry;
-                var compType = ((ValueDataNode) componentMapping.Get("type")).Value;
+                string compType = ((ValueDataNode) componentMapping.Get("type")).Value;
                 // See if type exists to detect errors.
-                switch (_factory.GetComponentAvailability(compType))
+                switch (factory.GetComponentAvailability(compType))
                 {
                     case ComponentAvailability.Available:
                         break;
@@ -51,31 +44,46 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations
                         continue;
 
                     case ComponentAvailability.Unknown:
-                        Log.Error($"Unknown component '{compType}' in prototype!");
+                        dependencies
+                            .Resolve<ILogManager>()
+                            .GetSawmill(SerializationManager.LogCategory)
+                            .Error($"Unknown component '{compType}' in prototype!");
                         continue;
                 }
 
-                var registration = _factory.GetRegistration(compType);
-                var compIdx = registration.Idx;
-
                 // Has this type already been added?
-                if (referenceTypes[..refIdx].Contains(compIdx))
+                if (components.ContainsKey(compType))
                 {
-                    throw new InvalidOperationException(
-                        $"Duplicate component reference in prototype: '{compIdx}'");
+                    dependencies
+                        .Resolve<ILogManager>()
+                        .GetSawmill(SerializationManager.LogCategory)
+                        .Error($"Component of type '{compType}' defined twice in prototype!");
+                    continue;
                 }
 
-                referenceTypes[refIdx++] = compIdx;
+                var copy = componentMapping.Copy()!;
+                copy.Remove("type");
 
-                var comp = (Component) _dynamicTypeFactoryInternal.CreateInstanceUnchecked(registration.Type, inject: false);
-#pragma warning disable CS0618 // Type or member is obsolete
-                comp = comp.Instantiate();
-#pragma warning restore CS0618 // Type or member is obsolete
-                comp.ReadComp(ref comp, componentMapping, serializationManager, hookCtx, context);
-                SerializationManager.TryRunAfterHook(comp, hookCtx);
+                var type = factory.GetRegistration(compType).Type;
+                var read = (IComponent)serializationManager.Read(type, copy, hookCtx, context)!;
 
-                // The full YAML mapping is already retained by PrototypeManager.
-                components[compType] = new ComponentRegistryEntry(comp);
+                components[compType] = new ComponentRegistryEntry(read, copy);
+            }
+
+            var referenceTypes = new List<CompIdx>();
+            // Assert that there are no conflicting component references.
+            foreach (var componentName in components.Keys)
+            {
+                var registration = factory.GetRegistration(componentName);
+                var compType = registration.Idx;
+
+                if (referenceTypes.Contains(compType))
+                {
+                    throw new InvalidOperationException(
+                        $"Duplicate component reference in prototype: '{compType}'");
+                }
+
+                referenceTypes.Add(compType);
             }
 
             return components;
@@ -86,10 +94,9 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations
             IDependencyCollection dependencies,
             ISerializationContext? context = null)
         {
-            var componentNames = new HashSet<string>();
+            var factory = dependencies.Resolve<IComponentFactory>();
+            var components = new ComponentRegistry();
             var list = new List<ValidationNode>();
-            var referenceTypes = node.Count <= 1024 ? stackalloc CompIdx[node.Count] : new CompIdx[node.Count];
-            var refIdx = 0;
 
             foreach (var sequenceEntry in node.Sequence)
             {
@@ -100,7 +107,7 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations
                 }
                 string compType = ((ValueDataNode) componentMapping.Get("type")).Value;
                 // See if type exists to detect errors.
-                switch (_factory.GetComponentAvailability(compType))
+                switch (factory.GetComponentAvailability(compType))
                 {
                     case ComponentAvailability.Available:
                         break;
@@ -115,25 +122,34 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations
                 }
 
                 // Has this type already been added?
-                if (!componentNames.Add(compType))
+                if (components.ContainsKey(compType))
                 {
                     list.Add(new ErrorNode(componentMapping, "Duplicate Component."));
                     continue;
                 }
 
-                var registration = _factory.GetRegistration(compType);
-                var compIdx = registration.Idx;
+                var copy = componentMapping.Copy()!;
+                copy.Remove("type");
 
-                if (referenceTypes[..refIdx].Contains(compIdx))
+                var type = factory.GetRegistration(compType).Type;
+
+                list.Add(serializationManager.ValidateNode(type, copy, context));
+            }
+
+            var referenceTypes = new List<CompIdx>();
+
+            // Assert that there are no conflicting component references.
+            foreach (var componentName in components.Keys)
+            {
+                var registration = factory.GetRegistration(componentName);
+                var compType = registration.Idx;
+
+                if (referenceTypes.Contains(compType))
                 {
-                    list.Add(new ErrorNode(componentMapping, "Duplicate ComponentReference."));
-                    continue;
+                    return new ErrorNode(node, "Duplicate ComponentReference.");
                 }
 
-                referenceTypes[refIdx++] = compIdx;
-
-                var copy = componentMapping.CopyNoType();
-                list.Add(serializationManager.ValidateNode(registration.Type, copy, context));
+                referenceTypes.Add(compType);
             }
 
             return new ValidatedSequenceNode(list);
@@ -170,8 +186,7 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations
 
             foreach (var (id, component) in source)
             {
-                var copy = serializationManager.CreateCopy(component.Component, context, notNullableOverride: true);
-                target.Add(id, new ComponentRegistryEntry(copy));
+                target.Add(id, serializationManager.CreateCopy(component, context, notNullableOverride: true));
             }
         }
 
@@ -179,9 +194,10 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations
             SequenceDataNode parent,
             IDependencyCollection dependencies, ISerializationContext? context)
         {
+            var componentFactory = dependencies.Resolve<IComponentFactory>();
             var newCompReg = child.Copy();
-            var newCompRegDict = ToTypeIndexedDictionary(newCompReg);
-            var parentDict = ToTypeIndexedDictionary(parent);
+            var newCompRegDict = ToTypeIndexedDictionary(newCompReg, componentFactory);
+            var parentDict = ToTypeIndexedDictionary(parent, componentFactory);
 
             foreach (var (reg, mapping) in parentDict)
             {
@@ -210,26 +226,19 @@ namespace Robust.Shared.Serialization.TypeSerializers.Implementations
             return newCompReg;
         }
 
-        private Dictionary<ComponentRegistration, int> ToTypeIndexedDictionary(SequenceDataNode node)
+        private Dictionary<ComponentRegistration, int> ToTypeIndexedDictionary(SequenceDataNode node, IComponentFactory componentFactory)
         {
             var dict = new Dictionary<ComponentRegistration, int>();
             for (var i = 0; i < node.Count; i++)
             {
                 var mapping = (MappingDataNode)node[i];
                 var type = mapping.Get<ValueDataNode>("type").Value;
-                var availability = _factory.GetComponentAvailability(type);
-                if (availability == ComponentAvailability.Ignore)
-                    continue;
-
-                dict.Add(_factory.GetRegistration(type), i);
+                var availability = componentFactory.GetComponentAvailability(type);
+                if(availability == ComponentAvailability.Ignore) continue;
+                dict.Add(componentFactory.GetRegistration(type), i);
             }
 
             return dict;
-        }
-
-        void IPostInjectInit.PostInject()
-        {
-            _dynamicTypeFactoryInternal = (IDynamicTypeFactoryInternal) _dynamicTypeFactory;
         }
     }
 }

@@ -28,6 +28,7 @@ internal sealed class DeletionNetworkingTests : RobustIntegrationTest
 
         await Task.WhenAll(client.WaitIdleAsync(), server.WaitIdleAsync());
 
+        var mapMan = server.ResolveDependency<IMapManager>();
         var sEntMan = server.ResolveDependency<IEntityManager>();
         var cEntMan = client.ResolveDependency<IEntityManager>();
         var netMan = client.ResolveDependency<IClientNetManager>();
@@ -60,13 +61,13 @@ internal sealed class DeletionNetworkingTests : RobustIntegrationTest
         await server.WaitPost(() =>
         {
             mapSys.CreateMap(out var mapId);
-            var gridComp = mapSys.CreateGridEntity(mapId);
+            var gridComp = mapMan.CreateGridEntity(mapId);
             mapSys.SetTile(gridComp, Vector2i.Zero, new Tile(1));
             grid1 = gridComp.Owner;
             xformSys.SetLocalPosition(grid1, new Vector2(-2,0));
             grid1Net = sEntMan.GetNetEntity(grid1);
 
-            gridComp = mapSys.CreateGridEntity(mapId);
+            gridComp = mapMan.CreateGridEntity(mapId);
             mapSys.SetTile(gridComp, Vector2i.Zero, new Tile(1));
             grid2 = gridComp.Owner;
             xformSys.SetLocalPosition(grid2, new Vector2(2,0));

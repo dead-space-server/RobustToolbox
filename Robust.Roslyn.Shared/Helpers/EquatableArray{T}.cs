@@ -27,12 +27,6 @@ public static class EquatableArray
     {
         return new(array);
     }
-
-    public static EquatableArray<T> AsEquatableArray<T>(this IEnumerable<T> enumerable)
-        where T : IEquatable<T>
-    {
-        return enumerable.ToImmutableArray().AsEquatableArray();
-    }
 }
 
 /// <summary>
@@ -66,8 +60,6 @@ public readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnume
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => ref AsImmutableArray().ItemRef(index);
     }
-
-    public int Length => AsImmutableArray().Length;
 
     /// <summary>
     /// Gets a value indicating whether the current array is empty.

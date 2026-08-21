@@ -233,48 +233,7 @@ namespace Robust.Client.UserInterface
             float verticalOffset,
             MarkupDrawingContext context,
             float uiScale,
-            float lineHeightScale = 1,
-            TextOutline? outline = null)
-        {
-            if (outline is { } outlineSettings)
-            {
-                DrawPass(
-                    tagManager,
-                    handle,
-                    defaultFont,
-                    drawBox,
-                    verticalOffset,
-                    context,
-                    uiScale,
-                    lineHeightScale,
-                    outlineSettings,
-                    arrangeControls: false);
-            }
-
-            DrawPass(
-                tagManager,
-                handle,
-                defaultFont,
-                drawBox,
-                verticalOffset,
-                context,
-                uiScale,
-                lineHeightScale,
-                outline: null,
-                arrangeControls: true);
-        }
-
-        private readonly void DrawPass(
-            MarkupTagManager tagManager,
-            DrawingHandleBase handle,
-            Font defaultFont,
-            UIBox2 drawBox,
-            float verticalOffset,
-            MarkupDrawingContext context,
-            float uiScale,
-            float lineHeightScale,
-            TextOutline? outline,
-            bool arrangeControls)
+            float lineHeightScale = 1)
         {
             context.Clear();
             context.Color.Push(_defaultColor);
@@ -284,8 +243,6 @@ namespace Robust.Client.UserInterface
             var lineBreakIndex = 0;
             var baseLine = drawBox.TopLeft + new Vector2(0, defaultFont.GetAscent(uiScale) + verticalOffset);
             var controlYAdvance = 0f;
-            var hasOutline = outline.HasValue;
-            var outlineSettings = outline.GetValueOrDefault();
 
             var spaceRune = new Rune(' ');
 
@@ -317,9 +274,7 @@ namespace Robust.Client.UserInterface
                             skipSpaceBaseline = true;
                     }
 
-                    var advance = hasOutline
-                        ? font.DrawCharOutline(handle, rune, baseLine, uiScale, outlineSettings)
-                        : font.DrawChar(handle, rune, baseLine, uiScale, color);
+                    var advance = font.DrawChar(handle, rune, baseLine, uiScale, color);
 
                     if (!skipSpaceBaseline)
                         baseLine += new Vector2(advance, 0);
@@ -330,26 +285,18 @@ namespace Robust.Client.UserInterface
                 if (Controls == null || !Controls.TryGetValue(nodeIndex, out var control))
                     continue;
 
-                var invertedScale = 1f / uiScale;
-                if (arrangeControls)
-                {
-                    // Controls may have been previously hidden via HideControls due to being "out-of frame".
-                    // If this ever gets replaced with RectClipContents / scissor box testing, this can be removed.
-                    control.Visible = true;
-                    control.Measure(new Vector2(Width, Height));
-                    control.Arrange(UIBox2.FromDimensions(
-                        baseLine.X * invertedScale,
-                        (baseLine.Y - defaultFont.GetAscent(uiScale)) * invertedScale,
-                        control.DesiredSize.X,
-                        control.DesiredSize.Y
-                    ));
-                }
-                else
-                {
-                    // The outline pass still needs the control's advance to place later glyphs correctly.
-                    control.Measure(new Vector2(Width, Height));
-                }
+                // Controls may have been previously hidden via HideControls due to being "out-of frame".
+                // If this ever gets replaced with RectClipContents / scissor box testing, this can be removed.
+                control.Visible = true;
 
+                var invertedScale = 1f / uiScale;
+                control.Measure(new Vector2(Width, Height));
+                control.Arrange(UIBox2.FromDimensions(
+                    baseLine.X * invertedScale,
+                    (baseLine.Y - defaultFont.GetAscent(uiScale)) * invertedScale,
+                    control.DesiredSize.X,
+                    control.DesiredSize.Y
+                ));
                 var advanceX = control.DesiredPixelSize.X;
                 controlYAdvance = Math.Max(0f, (control.DesiredPixelSize.Y - GetLineHeight(font, uiScale, lineHeightScale)) * invertedScale);
                 baseLine += new Vector2(advanceX, 0);

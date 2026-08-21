@@ -3,9 +3,9 @@ using Robust.Shared.Localization;
 
 namespace Robust.Shared.Console.Commands;
 
-internal sealed partial class DumpDependencyInjectors : LocalizedCommands
+internal sealed class DumpDependencyInjectors : LocalizedCommands
 {
-    [Dependency] private IDependencyCollection _dependencies = default!;
+    [Dependency] private readonly IDependencyCollection _dependencies = default!;
 
     public override string Command => "dump_dependency_injectors";
 

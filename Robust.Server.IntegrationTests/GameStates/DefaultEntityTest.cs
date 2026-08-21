@@ -6,6 +6,7 @@ using Robust.Shared;
 using Robust.Shared.Configuration;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Map;
+using Robust.Shared.Network;
 
 namespace Robust.UnitTesting.Server.GameStates;
 
@@ -18,22 +19,35 @@ public sealed class DefaultEntityTest : RobustIntegrationTest
     [Test]
     public async Task TestSpawnDefaultEntity()
     {
-        await using var pair = await StartConnectedPair();
-        var (client, server) = pair;
+        var server = StartServer();
+        var client = StartClient();
+
+        await Task.WhenAll(client.WaitIdleAsync(), server.WaitIdleAsync());
 
         var sEntMan = server.ResolveDependency<IEntityManager>();
         var cEntMan = client.ResolveDependency<IEntityManager>();
+        var netMan = client.ResolveDependency<IClientNetManager>();
         var playerMan = server.ResolveDependency<IPlayerManager>();
         var confMan = server.ResolveDependency<IConfigurationManager>();
 
+        client.SetConnectTarget(server);
+        client.Post(() => netMan.ClientConnect(null!, 0, null!));
         server.Post(() => confMan.SetCVar(CVars.NetPVS, false));
 
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         var session = playerMan.Sessions.First();
         await server.WaitPost(() => playerMan.JoinGame(session));
 
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         // Spawn a default unmodified entity.
         NetEntity ent = default;
@@ -42,7 +56,11 @@ public sealed class DefaultEntityTest : RobustIntegrationTest
             ent = sEntMan.GetNetEntity(sEntMan.Spawn());
         });
 
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         // Check that server & client both think the entity exists.
         Assert.That(sEntMan.EntityExists(sEntMan.GetEntity(ent)));
@@ -63,7 +81,11 @@ public sealed class DefaultEntityTest : RobustIntegrationTest
             server.PlayerMan.SetAttachedEntity(session, playerUid);
         });
 
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         Assert.That(sEntMan.EntityExists(sEntMan.GetEntity(player)));
         Assert.That(cEntMan.EntityExists(cEntMan.GetEntity(player)));
@@ -73,11 +95,18 @@ public sealed class DefaultEntityTest : RobustIntegrationTest
             ent = sEntMan.GetNetEntity(sEntMan.SpawnAtPosition(null, coords));
         });
 
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         Assert.That(sEntMan.EntityExists(sEntMan.GetEntity(ent)));
         Assert.That(cEntMan.EntityExists(cEntMan.GetEntity(ent)));
 
+        await client.WaitPost(() => netMan.ClientDisconnect(""));
+        await server.WaitRunTicks(5);
+        await client.WaitRunTicks(5);
     }
 }
 

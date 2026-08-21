@@ -9,9 +9,9 @@ namespace Robust.Shared.Map.Commands;
 /// <summary>
 /// Sets the ambient light for a particular map
 /// </summary>
-public sealed partial class AmbientLightCommand : IConsoleCommand
+public sealed class AmbientLightCommand : IConsoleCommand
 {
-    [Dependency] private IEntitySystemManager _systems = default!;
+    [Dependency] private readonly IEntitySystemManager _systems = default!;
 
     public string Command => $"setambientlight";
     public string Description => Loc.GetString("cmd-set-ambient-light-desc");

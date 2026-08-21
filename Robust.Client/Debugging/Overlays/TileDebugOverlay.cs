@@ -21,13 +21,14 @@ namespace Robust.Client.Debugging.Overlays;
 /// This is an abstract helper class that can be used to create simple debug overlays that need to render tile based data.
 /// </summary>
 [UsedImplicitly]
-public abstract partial class TileDebugOverlay : Overlay, IPostInjectInit
+public abstract class TileDebugOverlay : Overlay, IPostInjectInit
 {
-    [Dependency] protected IEntityManager Entity = default!;
-    [Dependency] protected IEyeManager Eye = default!;
-    [Dependency] protected IInputManager Input = default!;
-    [Dependency] protected IUserInterfaceManager Ui = default!;
-    [Dependency] protected IResourceCache Cache = default!;
+    [Dependency] protected readonly IEntityManager Entity = default!;
+    [Dependency] protected readonly IEyeManager Eye = default!;
+    [Dependency] protected readonly IMapManager MapMan = default!;
+    [Dependency] protected readonly IInputManager Input = default!;
+    [Dependency] protected readonly IUserInterfaceManager Ui = default!;
+    [Dependency] protected readonly IResourceCache Cache = default!;
 
     protected SharedTransformSystem Transform = default!;
     protected MapSystem Map = default!;
@@ -38,7 +39,7 @@ public abstract partial class TileDebugOverlay : Overlay, IPostInjectInit
     protected Font Font = default!;
     protected List<Entity<MapGridComponent>> Grids = new();
 
-    void IPostInjectInit.PostInject()
+    public void PostInject()
     {
         Transform = Entity.System<SharedTransformSystem>();
         Map = Entity.System<MapSystem>();
@@ -58,7 +59,7 @@ public abstract partial class TileDebugOverlay : Overlay, IPostInjectInit
         if (args.Viewport.Eye?.Position.MapId is not {} map || map == MapId.Nullspace)
             return;
 
-        Map.FindGridsIntersecting(map, args.WorldBounds, ref Grids);
+        MapMan.FindGridsIntersecting(map, args.WorldBounds, ref Grids);
 
         foreach (var grid in Grids)
         {
@@ -81,7 +82,8 @@ public abstract partial class TileDebugOverlay : Overlay, IPostInjectInit
         var handle = args.ScreenHandle;
         var (_, _, matrix, invMatrix) = Transform.GetWorldPositionRotationMatrixWithInv(grid.Owner);
         var gridBounds = invMatrix.TransformBox(args.WorldBounds).Enlarged(grid.Comp.TileSize * 2);
-        foreach (var tile in Map.GetLocalTilesIntersecting(grid, grid, gridBounds))
+        var tilesEnumerator = Map.GetLocalTilesEnumerator(grid, grid, gridBounds);
+        while (tilesEnumerator.MoveNext(out var tile))
         {
             var tileBounds = Lookup.GetLocalBounds(tile, grid.Comp.TileSize);
             if (!gridBounds.Intersects(tileBounds))
@@ -106,7 +108,7 @@ public abstract partial class TileDebugOverlay : Overlay, IPostInjectInit
 
         var coords = viewport.PixelToMap(mousePos.Position);
 
-        if (!Map.TryFindGridAt(coords, out var grid, out var comp))
+        if (!MapMan.TryFindGridAt(coords, out var grid, out var comp))
             return;
 
         var local = Map.WorldToLocal(grid, comp, coords.Position);
@@ -145,7 +147,8 @@ public abstract partial class TileDebugOverlay : Overlay, IPostInjectInit
         var handle = args.WorldHandle;
         var (_, _, matrix, invMatrix) = Transform.GetWorldPositionRotationMatrixWithInv(grid.Owner);
         var gridBounds = invMatrix.TransformBox(args.WorldBounds).Enlarged(grid.Comp.TileSize * 2);
-        foreach (var tile in Map.GetLocalTilesIntersecting(grid, grid, gridBounds))
+        var tilesEnumerator = Map.GetLocalTilesEnumerator(grid, grid, gridBounds);
+        while (tilesEnumerator.MoveNext(out var tile))
         {
             handle.SetTransform(matrix);
             var tileBounds = Lookup.GetLocalBounds(tile, grid.Comp.TileSize);

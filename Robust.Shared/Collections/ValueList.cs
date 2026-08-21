@@ -23,9 +23,6 @@ namespace Robust.Shared.Collections;
 /// public APIs probably shouldn't expose it unless you know what you're doing.
 /// </para>
 /// <para>
-/// If you use this as an IList then make sure it's passed as a generic to avoid boxing.
-/// </para>
-/// <para>
 /// This implementation does not complain if you modify it during iteration. Be careful!
 /// </para>
 /// <para>
@@ -37,7 +34,7 @@ namespace Robust.Shared.Collections;
 /// </para>
 /// </remarks>
 /// <typeparam name="T">The type of item to store in the list.</typeparam>
-public struct ValueList<T> : IList<T>
+public struct ValueList<T> : IEnumerable<T>
 {
     private const int DefaultCapacity = 4;
 
@@ -145,7 +142,6 @@ public struct ValueList<T> : IList<T>
     }
 
     public int Count { get; private set; }
-    public readonly bool IsReadOnly => false;
 
     // Sets or Gets the element at the given index.
     public readonly ref T this[int index]
@@ -284,22 +280,6 @@ public struct ValueList<T> : IList<T>
         return IndexOf(item) >= 0;
     }
 
-    public readonly void CopyTo(T[] array, int arrayIndex)
-    {
-        ArgumentNullException.ThrowIfNull(array);
-
-        if (arrayIndex < 0)
-            throw new ArgumentOutOfRangeException(nameof(arrayIndex));
-
-        if (array.Length - arrayIndex < Count)
-            throw new ArgumentException("Destination array is not long enough.");
-
-        if (Count == 0)
-            return;
-
-        Array.Copy(_items!, 0, array, arrayIndex, Count);
-    }
-
     /// <summary>
     /// Ensures that the capacity of this list is at least the specified <paramref name="capacity"/>.
     /// If the current capacity of the list is less than specified <paramref name="capacity"/>,
@@ -417,16 +397,13 @@ public struct ValueList<T> : IList<T>
             throw new ArgumentOutOfRangeException();
         }
 
-        if (Count == Capacity)
-            Grow(Count + 1);
-
-        var items = _items!;
+        if (Count == _items!.Length) Grow(Count + 1);
         if (index < Count)
         {
-            Array.Copy(items, index, items, index + 1, Count - index);
+            Array.Copy(_items, index, _items, index + 1, Count - index);
         }
 
-        items[index] = item;
+        _items[index] = item;
         Count++;
     }
 
@@ -525,24 +502,6 @@ public struct ValueList<T> : IList<T>
 
         if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             _items![Count] = default!;
-    }
-
-    T IList<T>.this[int index]
-    {
-        readonly get
-        {
-            if ((uint) index >= (uint) Count)
-                throw new ArgumentOutOfRangeException(nameof(index));
-
-            return _items![index];
-        }
-        set
-        {
-            if ((uint) index >= (uint) Count)
-                throw new ArgumentOutOfRangeException(nameof(index));
-
-            _items![index] = value;
-        }
     }
 
     public void Sort() => Span.Sort();
@@ -715,12 +674,7 @@ public struct ValueList<T> : IList<T>
             return false;
         }
 
-        var index = --Count;
-        value = _items![index];
-
-        if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-            _items[index] = default!;
-
+        value = _items![--Count];
         return true;
     }
 
@@ -736,7 +690,7 @@ public struct ValueList<T> : IList<T>
             return false;
         }
 
-        value = _items![Count - 1];
+        value = _items![Count];
         return true;
     }
 }

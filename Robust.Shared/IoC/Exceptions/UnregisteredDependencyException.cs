@@ -34,13 +34,5 @@ namespace Robust.Shared.IoC.Exceptions
             TargetType = target.AssemblyQualifiedName;
             FieldName = fieldName;
         }
-
-        public UnregisteredDependencyException(Type owner, Type target)
-            : base($"{owner} requested unregistered type with a dependency field: {target}")
-        {
-            OwnerType = owner.AssemblyQualifiedName;
-            TargetType = target.AssemblyQualifiedName;
-            FieldName = null;
-        }
     }
 }

@@ -12,9 +12,9 @@ using YamlDotNet.RepresentationModel;
 
 namespace Robust.UnitTesting
 {
-    internal sealed partial class IntegrationMappedStringSerializer : IRobustMappedStringSerializer
+    internal sealed class IntegrationMappedStringSerializer : IRobustMappedStringSerializer
     {
-        [Dependency] private INetManager _net = default!;
+        [Dependency] private readonly INetManager _net = default!;
 
         public bool Locked => false;
 

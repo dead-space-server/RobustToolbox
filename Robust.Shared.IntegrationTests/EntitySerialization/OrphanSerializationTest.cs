@@ -129,6 +129,7 @@ internal sealed partial class OrphanSerializationTest : RobustIntegrationTest
         var mapSys = server.System<SharedMapSystem>();
         var loader = server.System<MapLoaderSystem>();
         var xform = server.System<SharedTransformSystem>();
+        var mapMan = server.ResolveDependency<IMapManager>();
         var tileMan = server.ResolveDependency<ITileDefinitionManager>();
         var pathA = new ResPath($"{nameof(TestOrphanedGridSerialization)}_A.yml");
         var pathB = new ResPath($"{nameof(TestOrphanedGridSerialization)}_B.yml");
@@ -149,12 +150,12 @@ internal sealed partial class OrphanSerializationTest : RobustIntegrationTest
             var mapUid = mapSys.CreateMap(out mapId);
             map = Get(mapUid, entMan);
 
-            var gridAUid = mapSys.CreateGridEntity(mapId);
+            var gridAUid = mapMan.CreateGridEntity(mapId);
             mapSys.SetTile(gridAUid, Vector2i.Zero, new Tile(tDef.TileId));
             gridA = Get(gridAUid, entMan);
             xform.SetLocalPosition(gridA.Owner, new(100, 100));
 
-            var gridBUid = mapSys.CreateGridEntity(mapId);
+            var gridBUid = mapMan.CreateGridEntity(mapId);
             mapSys.SetTile(gridBUid, Vector2i.Zero, new Tile(tDef.TileId));
             gridB = Get(gridBUid, entMan);
 

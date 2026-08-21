@@ -17,12 +17,11 @@ internal sealed class YamlValidationContext :
     ITypeSerializer<NetEntity, ValueDataNode>,
     ITypeSerializer<MapId, ValueDataNode>
 {
-    public SerializationManager.SerializerProvider SerializerProvider { get; }
+    public SerializationManager.SerializerProvider SerializerProvider { get; } = new();
     public bool WritingReadingPrototypes => true;
 
-    public YamlValidationContext(ISerializationManager ser)
+    public YamlValidationContext()
     {
-        SerializerProvider = new(ser);
         SerializerProvider.RegisterSerializer(this);
     }
 

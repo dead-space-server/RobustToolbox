@@ -11,10 +11,10 @@ using Robust.Shared.Serialization.Manager;
 namespace Robust.Client.GameObjects
 {
     [UsedImplicitly]
-    public sealed partial class AppearanceSystem : SharedAppearanceSystem
+    public sealed class AppearanceSystem : SharedAppearanceSystem
     {
         private readonly Queue<(EntityUid uid, AppearanceComponent)> _queuedUpdates = new();
-        [Dependency] private ISerializationManager _serialization = default!;
+        [Dependency] private readonly ISerializationManager _serialization = default!;
 
         public override void Initialize()
         {

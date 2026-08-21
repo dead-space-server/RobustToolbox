@@ -52,16 +52,10 @@ public sealed class AutoGenerateComponentStateAttribute : Attribute
     /// </summary>
     public readonly bool FieldDeltas;
 
-    /// <summary>
-    ///     Should replays get a null component state, or a regular one.
-    /// </summary>
-    public readonly bool ExcludeReplays;
-
-    public AutoGenerateComponentStateAttribute(bool raiseAfterAutoHandleState = false, bool fieldDeltas = false, bool excludeReplays = false)
+    public AutoGenerateComponentStateAttribute(bool raiseAfterAutoHandleState = false, bool fieldDeltas = false)
     {
         RaiseAfterAutoHandleState = raiseAfterAutoHandleState;
         FieldDeltas = fieldDeltas;
-        ExcludeReplays = excludeReplays;
     }
 }
 

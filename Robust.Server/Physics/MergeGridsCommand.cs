@@ -8,9 +8,9 @@ using Robust.Shared.Toolshed;
 
 namespace Robust.Server.Physics;
 
-public sealed partial class MergeGridsCommand : LocalizedCommands
+public sealed class MergeGridsCommand : LocalizedCommands
 {
-    [Dependency] private IEntityManager _entManager = default!;
+    [Dependency] private readonly IEntityManager _entManager = default!;
 
     public override string Command => "merge_grids";
 

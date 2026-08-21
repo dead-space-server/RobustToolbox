@@ -21,11 +21,6 @@ namespace Robust.Shared.Serialization.Markdown
         public abstract bool IsEmpty { get; }
         public virtual bool IsNull { get; init; } = false;
 
-        internal virtual int GetCanonicalHashCode()
-        {
-            return 0;
-        }
-
         public abstract DataNode Copy();
 
         /// <summary>

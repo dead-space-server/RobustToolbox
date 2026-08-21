@@ -181,17 +181,17 @@ public partial class SerializationManager
     {
         var newMapping = child.Copy();
         var processedTags = new HashSet<string>();
-        var fieldQueue = new Queue<DataFieldDefinition>(definition.BaseFieldDefinitions);
+        var fieldQueue = new Queue<FieldDefinition>(definition.BaseFieldDefinitions);
         while (fieldQueue.TryDequeue(out var field))
         {
             if (field.InheritanceBehavior == InheritanceBehavior.Never) continue;
 
-            if (field.IsDataField)
+            if (field.Attribute is DataFieldAttribute dfa)
             {
                 // tag is set on data definition creation
-                if(!processedTags.Add(field.Tag!)) continue; //tag was already processed, probably because we are using the same tag in an include
+                if(!processedTags.Add(dfa.Tag!)) continue; //tag was already processed, probably because we are using the same tag in an include
 
-                var key = field.Tag!;
+                var key = dfa.Tag!;
                 if (parent.TryGetValue(key, out var parentValue))
                 {
                     if (newMapping.TryGetValue(key, out var childValue))

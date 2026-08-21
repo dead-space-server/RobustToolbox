@@ -29,14 +29,14 @@ public sealed class NetworkResourcesUploadedEvent
     }
 }
 
-public sealed partial class NetworkResourceManager : SharedNetworkResourceManager
+public sealed class NetworkResourceManager : SharedNetworkResourceManager
 {
     internal const int AckInitial = 1;
 
-    [Dependency] private IPlayerManager _playerManager = default!;
-    [Dependency] private IServerNetManager _serverNetManager = default!;
-    [Dependency] private IConfigurationManager _cfgManager = default!;
-    [Dependency] private IConGroupController _controller = default!;
+    [Dependency] private readonly IPlayerManager _playerManager = default!;
+    [Dependency] private readonly IServerNetManager _serverNetManager = default!;
+    [Dependency] private readonly IConfigurationManager _cfgManager = default!;
+    [Dependency] private readonly IConGroupController _controller = default!;
 
     [Obsolete("Use ResourcesUploaded instead")]
     public event Action<ICommonSession, NetworkResourceUploadMessage>? OnResourceUploaded;
@@ -117,7 +117,7 @@ public sealed partial class NetworkResourceManager : SharedNetworkResourceManage
         }
 #pragma warning restore CS0618 // Type or member is obsolete
 
-        ResourcesUploaded?.Invoke(new NetworkResourcesUploadedEvent(session, [.. ingested]));
+        ResourcesUploaded?.Invoke(new NetworkResourcesUploadedEvent(session, [..ingested]));
     }
 
     protected override void ValidateUpload(uint size)

@@ -4,9 +4,9 @@ using Robust.Shared.Localization;
 
 namespace Robust.Shared.Console.Commands;
 
-internal sealed partial class DumpNetComponentsCommand : LocalizedCommands
+internal sealed class DumpNetComponentsCommand : LocalizedCommands
 {
-    [Dependency] private IComponentFactory _componentFactory = default!;
+    [Dependency] private readonly IComponentFactory _componentFactory = default!;
 
     public override string Command => "dump_net_comps";
 

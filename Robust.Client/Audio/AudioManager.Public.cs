@@ -5,7 +5,6 @@ using System.Threading;
 using OpenTK.Audio.OpenAL;
 using Robust.Client.Audio.Sources;
 using Robust.Client.Graphics;
-using Robust.Shared;
 using Robust.Shared.Audio;
 using Robust.Shared.Audio.AudioLoading;
 using Robust.Shared.Audio.Sources;
@@ -46,11 +45,6 @@ internal partial class AudioManager
 
     public void Shutdown()
     {
-        _clyde.OnWindowFocused -= OnWindowFocused;
-        _cfg.UnsubValueChanged(CVars.AudioMasterVolume, SetMasterGain);
-        _cfg.UnsubValueChanged(CVars.AudioMuteUnfocused, OnMuteUnfocusedChanged);
-        _cfg.UnsubValueChanged(CVars.AudioDevice, OnAudioDeviceChanged);
-
         DisposeAllAudio();
 
         if (_openALContext != ALContext.Null)
@@ -88,17 +82,6 @@ internal partial class AudioManager
         var up = new OpenTK.Mathematics.Vector3(vec.Y, vec.X, 0f);
         AL.Listener(ALListenerfv.Orientation, new []{0, 0, -1, vec.X, vec.Y, 0});
         AL.Listener(ALListenerfv.Orientation, ref at, ref up);
-    }
-
-    public void FrameUpdate(float frameTime)
-    {
-        if (MathF.Abs(FadeGain - _masterFadeTargetGain) < 0.001f)
-            return;
-
-        _masterFadeElapsed = MathF.Min(_masterFadeElapsed + frameTime, MasterFadeDuration);
-        var t = MasterFadeDuration <= 0f ? 1f : _masterFadeElapsed / MasterFadeDuration;
-        FadeGain = MathHelper.Lerp(_masterFadeStartGain, _masterFadeTargetGain, t);
-        ApplyMasterGain();
     }
 
     void IAudioInternal.Remove(AudioStream stream)
@@ -249,26 +232,15 @@ internal partial class AudioManager
         if (newGain < 0f)
         {
             OpenALSawmill.Error("Tried to set master gain below 0, clamping to 0");
-            newGain = 0f;
+            AL.Listener(ALListenerf.Gain, 0f);
+            return;
         }
-
-        BaseGain = newGain;
-        ApplyMasterGain();
-    }
-
-    public float BaseGain { get; private set; }
-
-    public float FadeGain { get; private set; } = 1f;
-
-    private void ApplyMasterGain()
-    {
-        var effectiveGain = BaseGain * FadeGain;
 
 
         #region Platform hack for MacOS
         // HACK/BUG: Apple's OpenAL implementation has a bug where values of 0f for listener gain don't actually
         // HACK/BUG: prevent sound playback. Workaround is to cap the minimum gain at a value just above 0.
-        if (OperatingSystem.IsMacOS() && effectiveGain == 0f)
+        if (OperatingSystem.IsMacOS() && newGain == 0f)
         {
             OpenALSawmill.Verbose("Not setting gain to 0 because Apple can't write an OpenAL implementation");
             AL.Listener(ALListenerf.Gain, float.Epsilon);
@@ -276,7 +248,7 @@ internal partial class AudioManager
         }
         #endregion Platform hack for MacOS
 
-        AL.Listener(ALListenerf.Gain, effectiveGain);
+        AL.Listener(ALListenerf.Gain, newGain);
     }
 
     public void SetAttenuation(Attenuation attenuation)
@@ -310,13 +282,6 @@ internal partial class AudioManager
 
         _attenuation = attenuation;
         OpenALSawmill.Info($"Set audio attenuation to {attenuation.ToString()}");
-    }
-
-    public void SetDopplerFactor(float factor)
-    {
-        factor = Math.Max(factor, 0f);
-        AL.DopplerFactor(factor);
-        OpenALSawmill.Info($"Set doppler factor to {factor:F2}");
     }
 
     internal void RemoveAudioSource(int handle)

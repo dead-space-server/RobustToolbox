@@ -12,14 +12,15 @@ using Robust.Shared.Utility;
 
 namespace Robust.Client.UserInterface.CustomControls.DebugMonitorControls
 {
-    internal sealed partial class DebugCoordsPanel : PanelContainer
+    internal sealed class DebugCoordsPanel : PanelContainer
     {
-        [Dependency] private IPlayerManager _playerManager = default!;
-        [Dependency] private IEyeManager _eyeManager = default!;
-        [Dependency] private IInputManager _inputManager = default!;
-        [Dependency] private IEntityManager _entityManager = default!;
-        [Dependency] private IClyde _displayManager = default!;
-        [Dependency] private IBaseClient _baseClient = default!;
+        [Dependency] private readonly IPlayerManager _playerManager = default!;
+        [Dependency] private readonly IEyeManager _eyeManager = default!;
+        [Dependency] private readonly IInputManager _inputManager = default!;
+        [Dependency] private readonly IEntityManager _entityManager = default!;
+        [Dependency] private readonly IClyde _displayManager = default!;
+        [Dependency] private readonly IMapManager _mapManager = default!;
+        [Dependency] private readonly IBaseClient _baseClient = default!;
 
         private readonly StringBuilder _textBuilder = new();
         private readonly char[] _textBuffer = new char[1024];
@@ -75,7 +76,7 @@ namespace Robust.Client.UserInterface.CustomControls.DebugMonitorControls
                     var mapSystem = _entityManager.System<SharedMapSystem>();
                     var xformSystem = _entityManager.System<SharedTransformSystem>();
 
-                    if (mapSystem.TryFindGridAt(mouseWorldMap, out var mouseGridUid, out var mouseGrid))
+                    if (_mapManager.TryFindGridAt(mouseWorldMap, out var mouseGridUid, out var mouseGrid))
                     {
                         mouseGridPos = mapSystem.MapToGrid(mouseGridUid, mouseWorldMap);
                         tile = mapSystem.GetTileRef(mouseGridUid, mouseGrid, mouseGridPos);
@@ -85,7 +86,7 @@ namespace Robust.Client.UserInterface.CustomControls.DebugMonitorControls
                         mouseGridPos = new EntityCoordinates(mapSystem.GetMapOrInvalid(mouseWorldMap.MapId),
                             mouseWorldMap.Position);
                         tile = new TileRef(EntityUid.Invalid,
-                            mouseGridPos.ToVector2i(_entityManager, xformSystem), Tile.Empty);
+                            mouseGridPos.ToVector2i(_entityManager, _mapManager, xformSystem), Tile.Empty);
                     }
                 }
             }

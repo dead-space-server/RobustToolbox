@@ -12,10 +12,10 @@ using Robust.Shared.Map.Events;
 
 namespace Robust.Server.GameObjects
 {
-    public sealed partial class MapSystem : SharedMapSystem
+    public sealed class MapSystem : SharedMapSystem
     {
-        [Dependency] private IConfigurationManager _cfg = default!;
-        [Dependency] private PvsSystem _pvs = default!;
+        [Dependency] private readonly IConfigurationManager _cfg = default!;
+        [Dependency] private readonly PvsSystem _pvs = default!;
 
         private bool _deleteEmptyGrids;
 

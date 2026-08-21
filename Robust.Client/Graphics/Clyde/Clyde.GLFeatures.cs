@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
 using OpenToolkit.Graphics.OpenGL4;
 
 namespace Robust.Client.Graphics.Clyde
@@ -202,17 +201,17 @@ namespace Robust.Client.Graphics.Clyde
             if (!_isGLES)
             {
                 var extensions = new HashSet<string>();
-                var extensionsText = new StringBuilder();
+                var extensionsText = "";
                 // Desktop OpenGL uses this API to discourage static buffers
                 var count = GL.GetInteger(GetPName.NumExtensions);
                 for (var i = 0; i < count; i++)
                 {
                     if (i != 0)
                     {
-                        extensionsText.Append(' ');
+                        extensionsText += " ";
                     }
                     var extension = GL.GetString(StringNameIndexed.Extensions, i);
-                    extensionsText.Append(extension);
+                    extensionsText += extension;
                     extensions.Add(extension);
                 }
                 _sawmillOgl.Debug("OpenGL Extensions: {0}", extensionsText);

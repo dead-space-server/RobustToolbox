@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -14,68 +15,45 @@ public sealed class ExplicitVirtualAnalyzer : DiagnosticAnalyzer
     internal const string Attribute = "Robust.Shared.Analyzers.VirtualAttribute";
 
     [SuppressMessage("ReSharper", "RS2008")]
-    public static readonly DiagnosticDescriptor ExplicitVirtualRule = new(
+    private static readonly DiagnosticDescriptor Rule = new(
         Diagnostics.IdExplicitVirtual,
-        "Class must be explicitly marked as [Virtual], abstract, static, or sealed",
-        "Class must be explicitly marked as [Virtual], abstract, static, or sealed",
+        "Class must be explicitly marked as [Virtual], abstract, static or sealed",
+        "Class must be explicitly marked as [Virtual], abstract, static or sealed",
         "Usage",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Class must be explicitly marked as [Virtual], abstract, static, or sealed.");
+        description: "Class must be explicitly marked as [Virtual], abstract, static or sealed.");
 
-    public static readonly DiagnosticDescriptor ExclusiveRule = new(
-        Diagnostics.IdExclusiveVirtual,
-        "A class marked as [Virtual] cannot be abstract, static, or sealed",
-        "A class marked as [Virtual] cannot be abstract, static, or sealed",
-        "Usage",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true,
-        description: "A class marked as [Virtual] cannot be abstract, static, or sealed.");
-
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-    [
-        ExplicitVirtualRule,
-        ExclusiveRule,
-    ];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
 
     public override void Initialize(AnalysisContext context)
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterCompilationStartAction(ctx =>
-        {
-            if (ctx.Compilation.GetTypeByMetadataName(Attribute) is not INamedTypeSymbol attrSymbol)
-                return;
-
-            ctx.RegisterSyntaxNodeAction(nodeContext => AnalyzeNode(nodeContext, attrSymbol), SyntaxKind.ClassDeclaration);
-        });
+        context.RegisterSyntaxNodeAction(AnalyzeNode, SyntaxKind.ClassDeclaration);
     }
 
-    private static void AnalyzeNode(SyntaxNodeAnalysisContext context, INamedTypeSymbol attrSymbol)
+    private static bool HasAttribute(INamedTypeSymbol namedTypeSymbol, INamedTypeSymbol attrSymbol)
     {
+        return namedTypeSymbol.GetAttributes()
+            .Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, attrSymbol));
+    }
+
+    private static void AnalyzeNode(SyntaxNodeAnalysisContext context)
+    {
+        var attrSymbol = context.Compilation.GetTypeByMetadataName(Attribute);
         var classDecl = (ClassDeclarationSyntax)context.Node;
         var classSymbol = context.SemanticModel.GetDeclaredSymbol(classDecl);
         if (classSymbol == null)
             return;
 
-        var hasKeyword = classSymbol.IsSealed || classSymbol.IsAbstract || classSymbol.IsStatic;
-        var hasAttribute = AttributeHelper.HasAttribute(classSymbol, attrSymbol, out _);
-
-        if (hasAttribute && hasKeyword)
-        {
-            // Having both [Virtual] and sealed/abstract/static doesn't make sense.
-            context.ReportDiagnostic(Diagnostic.Create(
-                ExclusiveRule,
-                classDecl.Keyword.GetLocation()
-            ));
-        }
-
-        // Having just [Virtual] or sealed/abstract/static is fine.
-        if (hasKeyword || hasAttribute)
+        if (classSymbol.IsSealed || classSymbol.IsAbstract || classSymbol.IsStatic)
             return;
 
-        // Having neither is bad.
-        var diag = Diagnostic.Create(ExplicitVirtualRule, classDecl.Keyword.GetLocation());
+        if (HasAttribute(classSymbol, attrSymbol))
+            return;
+
+        var diag = Diagnostic.Create(Rule, classDecl.Keyword.GetLocation());
         context.ReportDiagnostic(diag);
     }
 }

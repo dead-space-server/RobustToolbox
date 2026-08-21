@@ -10,10 +10,10 @@ using Robust.Shared.Utility;
 
 namespace Robust.Client.Profiling;
 
-public sealed partial class LiveProfileViewControl : Control
+public sealed class LiveProfileViewControl : Control
 {
-    [Dependency] private ProfManager _profManager = default!;
-    [Dependency] private IResourceCache _resourceCache = default!;
+    [Dependency] private readonly ProfManager _profManager = default!;
+    [Dependency] private readonly IResourceCache _resourceCache = default!;
 
     public int MaxDepth { get; set; } = 2;
 

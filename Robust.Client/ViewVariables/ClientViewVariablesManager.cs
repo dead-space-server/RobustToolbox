@@ -20,11 +20,11 @@ namespace Robust.Client.ViewVariables
 {
     internal sealed partial class ClientViewVariablesManager : ViewVariablesManager, IClientViewVariablesManagerInternal
     {
-        [Dependency] private IUserInterfaceManager _userInterfaceManager = default!;
-        [Dependency] private IClientNetManager _netManager = default!;
-        [Dependency] private IRobustSerializer _robustSerializer = default!;
-        [Dependency] private IEntityManager _entityManager = default!;
-        [Dependency] private IViewVariableControlFactory _controlFactory = default!;
+        [Dependency] private readonly IUserInterfaceManager _userInterfaceManager = default!;
+        [Dependency] private readonly IClientNetManager _netManager = default!;
+        [Dependency] private readonly IRobustSerializer _robustSerializer = default!;
+        [Dependency] private readonly IEntityManager _entityManager = default!;
+        [Dependency] private readonly IViewVariableControlFactory _controlFactory = default!;
 
         private uint _nextReqId = 1;
         private readonly Vector2i _defaultWindowSize = (640, 420);
@@ -123,7 +123,7 @@ namespace Robust.Client.ViewVariables
                 instance = new ViewVariablesInstanceObject(this, _robustSerializer);
             }
 
-            loadingLabel.Orphan();
+            loadingLabel.Dispose();
             instance.Initialize(window, blob, session);
             window.OnClose += () => _closeInstance(instance, false);
             _windows.Add(instance, window);
@@ -205,7 +205,7 @@ namespace Robust.Client.ViewVariables
 
             if (closeWindow)
             {
-                window.Close();
+                window.Dispose();
             }
 
             _windows.Remove(instance);

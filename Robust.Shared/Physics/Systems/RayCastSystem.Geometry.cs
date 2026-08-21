@@ -112,11 +112,6 @@ public sealed partial class RayCastSystem
             return input.MaxFraction;
         }
 
-        if ((worldContext.Filter.Flags & QueryFlags.Sensors) == 0x0 && !proxy.Fixture.Hard)
-        {
-            return input.MaxFraction;
-        }
-
         if (worldContext.Filter.IsIgnored?.Invoke(proxy.Entity) == true)
         {
             return input.MaxFraction;

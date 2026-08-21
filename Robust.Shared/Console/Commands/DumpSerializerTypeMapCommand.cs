@@ -4,9 +4,9 @@ using Robust.Shared.Serialization;
 
 namespace Robust.Shared.Console.Commands;
 
-internal sealed partial class DumpSerializerTypeMapCommand : LocalizedCommands
+internal sealed class DumpSerializerTypeMapCommand : LocalizedCommands
 {
-    [Dependency] private IRobustSerializerInternal _robustSerializer = default!;
+    [Dependency] private readonly IRobustSerializerInternal _robustSerializer = default!;
 
     public override string Command => "dump_netserializer_type_map";
 

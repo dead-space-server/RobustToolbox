@@ -6,10 +6,10 @@ using Robust.Shared.Utility;
 
 namespace Robust.Client.UserInterface.RichText;
 
-public sealed partial class HeadingTag : IMarkupTagHandler
+public sealed class HeadingTag : IMarkupTagHandler
 {
-    [Dependency] private IResourceCache _resourceCache = default!;
-    [Dependency] private IPrototypeManager _prototypeManager = default!;
+    [Dependency] private readonly IResourceCache _resourceCache = default!;
+    [Dependency] private readonly IPrototypeManager _prototypeManager = default!;
 
     public string Name => "head";
 

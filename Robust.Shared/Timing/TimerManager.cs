@@ -5,9 +5,9 @@ using Robust.Shared.IoC;
 
 namespace Robust.Shared.Timing
 {
-    internal sealed partial class TimerManager : ITimerManager
+    internal sealed class TimerManager : ITimerManager
     {
-        [Dependency] private IRuntimeLog _runtimeLog = default!;
+        [Dependency] private readonly IRuntimeLog _runtimeLog = default!;
 
         private readonly List<(Timer, CancellationToken)> _timers
             = new();

@@ -53,11 +53,10 @@ def write_version(version: str, file_only: bool):
 
     # Update
     with open("MSBuild/Robust.Engine.Version.props", "w") as file:
-        file.write(
-            "<Project>\n"
-            "    <!-- This file automatically reset by Tools/version.py -->\n"
-            f"    <PropertyGroup><Version>{version}</Version></PropertyGroup>\n"
-            "</Project>\n")
+        file.write("<Project>" + os.linesep)
+        file.write("    <!-- This file automatically reset by Tools/version.py -->"  + os.linesep)
+        file.write("    <PropertyGroup><Version>" + version + "</Version></PropertyGroup>" + os.linesep)
+        file.write("</Project>" + os.linesep)
 
     if not file_only:
         # Commit

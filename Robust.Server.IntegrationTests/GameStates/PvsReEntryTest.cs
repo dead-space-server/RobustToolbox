@@ -8,6 +8,7 @@ using Robust.Shared;
 using Robust.Shared.Configuration;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Map;
+using Robust.Shared.Network;
 using Robust.Shared.Player;
 using Robust.Shared.Timing;
 
@@ -22,9 +23,12 @@ public sealed class PvsReEntryTest : RobustIntegrationTest
     [Test]
     public async Task TestLossyReEntry()
     {
-        await using var pair = await StartConnectedPair();
-        var (client, server) = pair;
+        var server = StartServer();
+        var client = StartClient();
 
+        await Task.WhenAll(client.WaitIdleAsync(), server.WaitIdleAsync());
+
+        var mapMan = server.ResolveDependency<IMapManager>();
         var sEntMan = server.ResolveDependency<IEntityManager>();
         var confMan = server.ResolveDependency<IConfigurationManager>();
         var sPlayerMan = server.ResolveDependency<ISharedPlayerManager>();
@@ -32,11 +36,18 @@ public sealed class PvsReEntryTest : RobustIntegrationTest
         var stateMan = (ClientGameStateManager) client.ResolveDependency<IClientGameStateManager>();
 
         var cEntMan = client.ResolveDependency<IEntityManager>();
+        var netMan = client.ResolveDependency<IClientNetManager>();
         var cPlayerMan = client.ResolveDependency<ISharedPlayerManager>();
 
+        Assert.DoesNotThrow(() => client.SetConnectTarget(server));
+        client.Post(() => netMan.ClientConnect(null!, 0, null!));
         server.Post(() => confMan.SetCVar(CVars.NetPVS, true));
 
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         // Ensure client & server ticks are synced.
         // Client runs 1 tick ahead
@@ -77,7 +88,11 @@ public sealed class PvsReEntryTest : RobustIntegrationTest
             sPlayerMan.JoinGame(session);
         });
 
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         Assert.That(player, Is.Not.EqualTo(NetEntity.Invalid));
         Assert.That(entity, Is.Not.EqualTo(NetEntity.Invalid));
@@ -100,7 +115,11 @@ public sealed class PvsReEntryTest : RobustIntegrationTest
         // note that we move the PLAYER not the entity, as we don't want to dirty the entity.
         var farAway = new EntityCoordinates(map, new Vector2(100, 100));
         await server.WaitPost( () => xforms.SetCoordinates(sEntMan.GetEntity(player), farAway));
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         // Client should have detached the entity to null space.
         Assert.That(meta!.Flags & MetaDataFlags.Detached, Is.EqualTo(MetaDataFlags.Detached));
@@ -108,7 +127,11 @@ public sealed class PvsReEntryTest : RobustIntegrationTest
 
         // Move the player back into range
         await server.WaitPost( () => xforms.SetCoordinates(sEntMan.GetEntity(player), coords));
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         // Entity is back in pvs range
         Assert.That(meta!.Flags & MetaDataFlags.Detached, Is.EqualTo(MetaDataFlags.None));
@@ -119,7 +142,11 @@ public sealed class PvsReEntryTest : RobustIntegrationTest
         var timing = client.ResolveDependency<IClientGameTiming>();
         var lastRealTick = timing.LastRealTick;
 
-        await RunTicksSync(server, client, 5);
+        for (int i = 0; i < 5; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         // Even though the client is receiving no new states, it will still have applied some from the state buffer.
         Assert.That(timing.LastRealTick, Is.GreaterThan(lastRealTick));
@@ -129,7 +156,11 @@ public sealed class PvsReEntryTest : RobustIntegrationTest
         Assert.That(meta!.Flags & MetaDataFlags.Detached, Is.EqualTo(MetaDataFlags.None));
         await server.WaitPost(() => xforms.SetCoordinates(sEntMan.GetEntity(player), farAway));
 
-        await RunTicksSync(server, client, 5);
+        for (int i = 0; i < 5; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         // Client should have exhausted the buffer -- client has not been applying any states.
         Assert.That(timing.LastRealTick, Is.EqualTo(lastRealTick));
@@ -142,7 +173,11 @@ public sealed class PvsReEntryTest : RobustIntegrationTest
         // Move the entity back into range
         await server.WaitPost( () => xforms.SetCoordinates(sEntMan.GetEntity(player), coords));
 
-        await RunTicksSync(server, client, 5);
+        for (int i = 0; i < 5; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         // Still hasn't been applying states.
         Assert.That(timing.LastRealTick, Is.EqualTo(lastRealTick));
@@ -154,7 +189,11 @@ public sealed class PvsReEntryTest : RobustIntegrationTest
         // Client clears the tunnel, starts receiving states again.
         stateMan.DropStates = false;
 
-        await RunTicksSync(server, client, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            await server.WaitRunTicks(1);
+            await client.WaitRunTicks(1);
+        }
 
         // Entity should be in PVS range, client should know about it:
         Assert.That(timing.LastRealTick, Is.GreaterThan(lastRealTick));
@@ -165,6 +204,9 @@ public sealed class PvsReEntryTest : RobustIntegrationTest
         // If the test moves the entity instead of the player, then the test doesn't actually work.
         Assert.That(meta.LastModifiedTick, Is.EqualTo(lastDirty));
 
+        await client.WaitPost(() => netMan.ClientDisconnect(""));
+        await server.WaitRunTicks(5);
+        await client.WaitRunTicks(5);
     }
 #endif
 }

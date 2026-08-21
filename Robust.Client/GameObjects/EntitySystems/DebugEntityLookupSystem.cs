@@ -11,9 +11,9 @@ using Color = Robust.Shared.Maths.Color;
 
 namespace Robust.Client.GameObjects;
 
-public sealed partial class DebugEntityLookupCommand : LocalizedEntityCommands
+public sealed class DebugEntityLookupCommand : LocalizedEntityCommands
 {
-    [Dependency] private DebugEntityLookupSystem _system = default!;
+    [Dependency] private readonly DebugEntityLookupSystem _system = default!;
 
     public override string Command => "togglelookup";
 

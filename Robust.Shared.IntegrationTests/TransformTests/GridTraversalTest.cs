@@ -16,6 +16,7 @@ internal sealed class GridTraversalTest : RobustIntegrationTest
         var server = StartServer();
         await server.WaitIdleAsync();
 
+        var mapMan = server.ResolveDependency<IMapManager>();
         var sEntMan = server.ResolveDependency<IEntityManager>();
         var xforms = sEntMan.System<SharedTransformSystem>();
         var mapSys = sEntMan.System<MapSystem>();
@@ -28,7 +29,7 @@ internal sealed class GridTraversalTest : RobustIntegrationTest
         await server.WaitPost(() =>
         {
             map = sEntMan.System<SharedMapSystem>().CreateMap(out mapId);
-            var gridComp = mapSys.CreateGridEntity(mapId);
+            var gridComp = mapMan.CreateGridEntity(mapId);
             grid = gridComp.Owner;
             mapSys.SetTile(grid, gridComp, Vector2i.Zero, new Tile(1));
             var gridCentre = new EntityCoordinates(grid, .5f, .5f);

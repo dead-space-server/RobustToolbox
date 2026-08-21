@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 using System.Threading;
 using Robust.Client.Graphics;
 using Robust.Shared.ContentPack;
@@ -14,22 +13,12 @@ using YamlDotNet.RepresentationModel;
 
 namespace Robust.Client.ResourceManagement
 {
-    public sealed class TextureResource : BaseResource, IBaseResource
+    public sealed class TextureResource : BaseResource
     {
         private OwnedTexture _texture = default!;
-        private bool _disposed;
-
         public override ResPath? Fallback => new("/Textures/noSprite.png");
-        static bool IBaseResource.CanBeRemoved => true;
 
-        public Texture Texture
-        {
-            get
-            {
-                ObjectDisposedException.ThrowIf(_disposed, this);
-                return _texture;
-            }
-        }
+        public Texture Texture => _texture;
 
         public override void Load(IDependencyCollection dependencies, ResPath path)
         {
@@ -88,18 +77,6 @@ namespace Robust.Client.ResourceManagement
             data.Image.Dispose();
         }
 
-        /// <summary>
-        /// Loads a texture from path as an <see cref="OwnedTexture"/>.
-        /// Texture parameters are taken from a matching .yml file if present.
-        /// </summary>
-        public static OwnedTexture LoadOwnedTexture(IResourceManager resManager, IClyde clyde, ResPath path)
-        {
-            var loadParams = TryLoadTextureParameters(resManager, path) ?? TextureLoadParameters.Default;
-            using var stream = resManager.ContentFileRead(path);
-            using var image = Image.Load<Rgba32>(stream);
-            return clyde.LoadTextureFromImage(image, path.ToString(), loadParams);
-        }
-
         private static TextureLoadParameters? TryLoadTextureParameters(IResourceManager cache, ResPath path)
         {
             var metaPath = path.WithName(path.Filename + ".yml");
@@ -129,14 +106,12 @@ namespace Robust.Client.ResourceManagement
 
         public override void Reload(IDependencyCollection dependencies, ResPath path, CancellationToken ct = default)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-
             var data = new LoadStepData {Path = path};
 
             LoadTextureParameters(dependencies.Resolve<IResourceManager>(), data);
             LoadPreTextureData(dependencies.Resolve<IResourceManager>(), data);
 
-            if (data.Image.Width == _texture.Width && data.Image.Height == _texture.Height)
+            if (data.Image.Width == Texture.Width && data.Image.Height == Texture.Height)
             {
                 // Dimensions match, rewrite texture in place.
                 _texture.SetSubImage(Vector2i.Zero, data.Image);
@@ -150,15 +125,6 @@ namespace Robust.Client.ResourceManagement
             }
 
             data.Image.Dispose();
-        }
-
-        public override void Dispose()
-        {
-            if (_disposed) return;
-            _disposed = true;
-            _texture?.Dispose();
-
-            base.Dispose();
         }
 
         internal sealed class LoadStepData

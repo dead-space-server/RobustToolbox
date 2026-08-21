@@ -20,8 +20,8 @@ namespace Robust.Server.Audio;
 
 public sealed partial class AudioSystem : SharedAudioSystem
 {
-    [Dependency] private PvsOverrideSystem _pvs = default!;
-    [Dependency] private IResourceManager _resourceManager = default!;
+    [Dependency] private readonly PvsOverrideSystem _pvs = default!;
+    [Dependency] private readonly IResourceManager _resourceManager = default!;
 
     private readonly Dictionary<string, TimeSpan> _cachedAudioLengths = new();
 

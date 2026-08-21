@@ -227,18 +227,14 @@ namespace Robust.Client.Graphics
                 return;
             }
 
-            var left = box.Left - ExpandMarginLeft * uiScale;
-            var top = box.Top - ExpandMarginTop * uiScale;
-            var right = MathF.Max(left, box.Right + ExpandMarginRight * uiScale);
-            var bottom = MathF.Max(top, box.Bottom + ExpandMarginBottom * uiScale);
-            box = new UIBox2(left, top, right, bottom);
+            box = new UIBox2(
+                box.Left - ExpandMarginLeft * uiScale,
+                box.Top - ExpandMarginTop * uiScale,
+                box.Right + ExpandMarginRight * uiScale,
+                box.Bottom + ExpandMarginBottom * uiScale);
 
-            var scaledMargin = new Thickness(PatchMarginLeft * TextureScale.X * uiScale,
-                PatchMarginTop * TextureScale.Y * uiScale,
-                PatchMarginRight * TextureScale.X * uiScale,
-                PatchMarginBottom * TextureScale.Y * uiScale);
-            var innerRight = MathF.Max(scaledMargin.Left, box.Width - scaledMargin.Right);
-            var innerBottom = MathF.Max(scaledMargin.Top, box.Height - scaledMargin.Bottom);
+            var scaledMargin = new UIBox2(PatchMarginLeft * TextureScale.X * uiScale, PatchMarginTop * TextureScale.Y * uiScale,
+                    PatchMarginRight * TextureScale.X * uiScale, PatchMarginBottom * TextureScale.Y * uiScale);
 
             if (PatchMarginLeft > 0)
             {
@@ -254,7 +250,7 @@ namespace Robust.Client.Graphics
                 {
                     // Draw left
                     var leftBox =
-                        new UIBox2(0, scaledMargin.Top, scaledMargin.Left, innerBottom)
+                        new UIBox2(0, scaledMargin.Top, scaledMargin.Left, box.Height - scaledMargin.Bottom)
                             .Translated(box.TopLeft);
                     DrawStretchingArea(handle, leftBox,
                         new UIBox2(0, PatchMarginTop, PatchMarginLeft, Texture.Height - PatchMarginBottom), uiScale);
@@ -286,7 +282,7 @@ namespace Robust.Client.Graphics
                     // Draw right
                     var rightBox =
                         new UIBox2(box.Width - scaledMargin.Right, scaledMargin.Top, box.Width,
-                                innerBottom)
+                                box.Height - scaledMargin.Bottom)
                             .Translated(box.TopLeft);
 
                     DrawStretchingArea(handle, rightBox,
@@ -311,7 +307,7 @@ namespace Robust.Client.Graphics
             {
                 // Draw top
                 var topBox =
-                    new UIBox2(scaledMargin.Left, 0, innerRight, scaledMargin.Top)
+                    new UIBox2(scaledMargin.Left, 0, box.Width - scaledMargin.Right, scaledMargin.Top)
                         .Translated(box.TopLeft);
                 DrawStretchingArea(handle, topBox,
                     new UIBox2(PatchMarginLeft, 0, Texture.Width - PatchMarginRight, PatchMarginTop), uiScale);
@@ -321,7 +317,7 @@ namespace Robust.Client.Graphics
             {
                 // Draw bottom
                 var bottomBox =
-                    new UIBox2(scaledMargin.Left, box.Height - scaledMargin.Bottom, innerRight,
+                    new UIBox2(scaledMargin.Left, box.Height - scaledMargin.Bottom, box.Width - scaledMargin.Right,
                             box.Height)
                         .Translated(box.TopLeft);
 
@@ -333,8 +329,8 @@ namespace Robust.Client.Graphics
 
             // Draw center
             {
-                var centerBox = new UIBox2(scaledMargin.Left, scaledMargin.Top, innerRight,
-                    innerBottom).Translated(box.TopLeft);
+                var centerBox = new UIBox2(scaledMargin.Left, scaledMargin.Top, box.Width - scaledMargin.Right,
+                    box.Height - scaledMargin.Bottom).Translated(box.TopLeft);
 
                 DrawStretchingArea(handle, centerBox, new UIBox2(PatchMarginLeft, PatchMarginTop, Texture.Width - PatchMarginRight,
                     Texture.Height - PatchMarginBottom), uiScale);

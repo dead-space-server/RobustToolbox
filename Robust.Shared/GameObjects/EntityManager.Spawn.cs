@@ -125,11 +125,7 @@ public partial class EntityManager
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public EntityUid SpawnAtPosition(string? protoName, EntityCoordinates coordinates, ComponentRegistry? overrides = null)
-        => SpawnAtPosition(protoName, coordinates, _xforms.GetWorldRotation(coordinates.EntityId), overrides);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public EntityUid SpawnAtPosition(string? protoName, EntityCoordinates coordinates, Angle rotation, ComponentRegistry? overrides = null)
-        => Spawn(protoName, _xforms.ToMapCoordinates(coordinates), overrides, rotation: rotation);
+        => Spawn(protoName, _xforms.ToMapCoordinates(coordinates), overrides);
 
     public bool TrySpawnNextTo(
         string? protoName,
@@ -256,11 +252,6 @@ public partial class EntityManager
     public virtual EntityUid PredictedSpawnAtPosition(string? protoName, EntityCoordinates coordinates, ComponentRegistry? overrides = null)
     {
         return SpawnAtPosition(protoName, coordinates, overrides);
-    }
-
-    public virtual EntityUid PredictedSpawnAtPosition(string? protoName, EntityCoordinates coordinates, Angle rotation, ComponentRegistry? overrides = null)
-    {
-        return SpawnAtPosition(protoName, coordinates, rotation, overrides);
     }
 
     public virtual bool PredictedTrySpawnNextTo(

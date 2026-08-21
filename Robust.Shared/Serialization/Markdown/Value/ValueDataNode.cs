@@ -93,11 +93,6 @@ namespace Robust.Shared.Serialization.Markdown.Value
             return Value.GetHashCode();
         }
 
-        internal override int GetCanonicalHashCode()
-        {
-            return HashCode.Combine(typeof(ValueDataNode), Tag, Value, IsNull);
-        }
-
         public override string ToString()
         {
             return Value;

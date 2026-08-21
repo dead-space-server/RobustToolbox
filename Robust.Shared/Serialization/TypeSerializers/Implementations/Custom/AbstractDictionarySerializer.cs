@@ -42,9 +42,7 @@ public sealed class AbstractDictionarySerializer<TValue> : ITypeSerializer<Dicti
         foreach (var (key, valueNode) in node.Children)
         {
             var type = serializationManager.ReflectionManager.YamlTypeTagLookup(typeof(TValue), key)!;
-            var copy = valueNode.Copy();
-            copy.Tag = $"!type:{key}";
-            var value = serializationManager.Read<TValue>(copy, hookCtx, context, notNullableOverride: true);
+            var value = (TValue) serializationManager.Read(type, valueNode, hookCtx, context, notNullableOverride:true)!;
             dict.Add(type, value);
         }
 

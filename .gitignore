@@ -78,6 +78,3 @@ MSBuild/Robust.Custom.targets
 release/
 Robust.Docfx/*-site
 Robust.Docfx/api
-
-# C# Dev Kit cache file
-*.lscache

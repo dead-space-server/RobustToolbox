@@ -4,6 +4,7 @@ using Robust.Shared.Utility;
 
 namespace Robust.Shared.Containers;
 
+
 // This partial class just exists for debug asserts and bug fixing
 public abstract partial class SharedContainerSystem : EntitySystem
 {
@@ -64,4 +65,5 @@ public abstract partial class SharedContainerSystem : EntitySystem
             ValidateChildren(childXform, xformQuery, physicsQuery);
         }
     }
+
 }

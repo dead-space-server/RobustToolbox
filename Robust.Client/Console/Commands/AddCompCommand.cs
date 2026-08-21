@@ -6,10 +6,10 @@ using Robust.Shared.IoC;
 namespace Robust.Client.Console.Commands
 {
     [UsedImplicitly]
-    internal sealed partial class AddCompCommand : LocalizedCommands
+    internal sealed class AddCompCommand : LocalizedCommands
     {
-        [Dependency] private IComponentFactory _componentFactory = default!;
-        [Dependency] private IEntityManager _entityManager = default!;
+        [Dependency] private readonly IComponentFactory _componentFactory = default!;
+        [Dependency] private readonly IEntityManager _entityManager = default!;
 
         public override string Command => "addcompc";
 
@@ -32,10 +32,10 @@ namespace Robust.Client.Console.Commands
     }
 
     [UsedImplicitly]
-    internal sealed partial class RemoveCompCommand : LocalizedCommands
+    internal sealed class RemoveCompCommand : LocalizedCommands
     {
-        [Dependency] private IComponentFactory _componentFactory = default!;
-        [Dependency] private IEntityManager _entityManager = default!;
+        [Dependency] private readonly IComponentFactory _componentFactory = default!;
+        [Dependency] private readonly IEntityManager _entityManager = default!;
 
         public override string Command => "rmcompc";
 

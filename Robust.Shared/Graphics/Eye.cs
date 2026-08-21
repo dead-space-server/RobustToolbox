@@ -16,7 +16,7 @@ namespace Robust.Shared.Graphics
         private MapCoordinates _coords;
 
         /// <inheritdoc />
-        [ViewVariables]
+        [ViewVariables(VVAccess.ReadWrite)]
         public bool DrawFov { get; set; } = true;
 
         /// <inheritdoc />

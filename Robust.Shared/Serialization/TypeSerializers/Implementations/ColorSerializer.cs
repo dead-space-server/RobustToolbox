@@ -8,55 +8,45 @@ using Robust.Shared.Serialization.Markdown.Validation;
 using Robust.Shared.Serialization.Markdown.Value;
 using Robust.Shared.Serialization.TypeSerializers.Interfaces;
 
-namespace Robust.Shared.Serialization.TypeSerializers.Implementations;
-
-[TypeSerializer]
-public sealed class ColorSerializer : ITypeSerializer<Color, ValueDataNode>, ITypeCopyCreator<Color>
+namespace Robust.Shared.Serialization.TypeSerializers.Implementations
 {
-    public Color Read(
-        ISerializationManager serializationManager,
-        ValueDataNode node,
-        IDependencyCollection dependencies,
-        SerializationHookContext hookCtx,
-        ISerializationContext? context = null,
-        ISerializationManager.InstantiationDelegate<Color>? instanceProvider = null)
+    [TypeSerializer]
+    public sealed class ColorSerializer : ITypeSerializer<Color, ValueDataNode>, ITypeCopyCreator<Color>
     {
-        var deserializedColor = Color.TryFromName(node.Value, out var color)
-            ? color
-            : Color.FromHex(node.Value);
+        public Color Read(ISerializationManager serializationManager, ValueDataNode node,
+            IDependencyCollection dependencies,
+            SerializationHookContext hookCtx,
+            ISerializationContext? context = null,
+            ISerializationManager.InstantiationDelegate<Color>? instanceProvider = null)
+        {
+            var deserializedColor = Color.TryFromName(node.Value, out var color)
+                ? color :
+                Color.FromHex(node.Value);
 
-        return deserializedColor;
-    }
+            return deserializedColor;
+        }
 
-    public ValidationNode Validate(
-        ISerializationManager serializationManager,
-        ValueDataNode node,
-        IDependencyCollection dependencies,
-        ISerializationContext? context = null)
-    {
-        return Color.TryFromName(node.Value, out _) || Color.TryFromHex(node.Value, out _)
-            ? new ValidatedValueNode(node)
-            : new ErrorNode(node, "Failed parsing Color.");
-    }
+        public ValidationNode Validate(ISerializationManager serializationManager, ValueDataNode node,
+            IDependencyCollection dependencies,
+            ISerializationContext? context = null)
+        {
+            return Color.TryFromName(node.Value, out _) || Color.TryFromHex(node.Value) != null
+                ? new ValidatedValueNode(node)
+                : new ErrorNode(node, "Failed parsing Color.");
+        }
 
-    public DataNode Write(
-        ISerializationManager serializationManager,
-        Color value,
-        IDependencyCollection dependencies,
-        bool alwaysWrite = false,
-        ISerializationContext? context = null)
-    {
-        return new ValueDataNode(value.ToHex());
-    }
+        public DataNode Write(ISerializationManager serializationManager, Color value,
+            IDependencyCollection dependencies, bool alwaysWrite = false,
+            ISerializationContext? context = null)
+        {
+            return new ValueDataNode(value.ToHex());
+        }
 
-    [MustUseReturnValue]
-    public Color CreateCopy(
-        ISerializationManager serializationManager,
-        Color source,
-        IDependencyCollection dependencies,
-        SerializationHookContext hookCtx,
-        ISerializationContext? context = null)
-    {
-        return new Color(source.R, source.G, source.B, source.A);
+        [MustUseReturnValue]
+        public Color CreateCopy(ISerializationManager serializationManager, Color source,
+            IDependencyCollection dependencies, SerializationHookContext hookCtx, ISerializationContext? context = null)
+        {
+            return new(source.R, source.G, source.B, source.A);
+        }
     }
 }

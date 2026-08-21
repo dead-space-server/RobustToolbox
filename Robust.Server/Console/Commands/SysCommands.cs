@@ -11,7 +11,7 @@ namespace Robust.Server.Console.Commands
     // Disabled for now since it doesn't actually work.
     sealed class RestartCommand : LocalizedCommands
     {
-        [Dependency] private IBaseServer _server = default!;
+        [Dependency] private readonly IBaseServer _server = default!;
 
         public override string Command => "restart";
 
@@ -22,21 +22,21 @@ namespace Robust.Server.Console.Commands
     }
     */
 
-    sealed partial class ShutdownCommand : LocalizedCommands
+    sealed class ShutdownCommand : LocalizedCommands
     {
-        [Dependency] private IBaseServer _server = default!;
+        [Dependency] private readonly IBaseServer _server = default!;
 
         public override string Command => "shutdown";
 
         public override void Execute(IConsoleShell shell, string argStr, string[] args)
         {
-            _server.Shutdown(argStr[$"{Command} ".Length..].Trim());
+            _server.Shutdown(null);
         }
     }
 
-    sealed partial class NetworkAuditCommand : LocalizedCommands
+    sealed class NetworkAuditCommand : LocalizedCommands
     {
-        [Dependency] private INetManager _netManager = default!;
+        [Dependency] private readonly INetManager _netManager = default!;
 
         public override string Command => "netaudit";
         public override void Execute(IConsoleShell shell, string argStr, string[] args)
@@ -57,9 +57,9 @@ namespace Robust.Server.Console.Commands
         }
     }
 
-    sealed partial class ShowTimeCommand : LocalizedCommands
+    sealed class ShowTimeCommand : LocalizedCommands
     {
-        [Dependency] private IGameTiming _timing = default!;
+        [Dependency] private readonly IGameTiming _timing = default!;
 
         public override string Command => "showtime";
 

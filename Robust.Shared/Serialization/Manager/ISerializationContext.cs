@@ -17,9 +17,9 @@ public sealed class EntityDiffContext : ISerializationContext
     public SerializationManager.SerializerProvider SerializerProvider { get; }
     public bool WritingReadingPrototypes { get; set; } = true;
 
-    public EntityDiffContext(ISerializationManager ser)
+    public EntityDiffContext()
     {
-        SerializerProvider = new(ser);
+        SerializerProvider = new();
         SerializerProvider.RegisterSerializer(this);
     }
 }

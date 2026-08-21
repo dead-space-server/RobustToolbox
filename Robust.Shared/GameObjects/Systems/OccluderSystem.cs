@@ -1,49 +1,35 @@
 using System;
-using System.Collections.Generic;
 using System.Numerics;
 using Robust.Shared.ComponentTrees;
 using Robust.Shared.GameStates;
-using Robust.Shared.IoC;
 using Robust.Shared.Map;
 using Robust.Shared.Maths;
 using Robust.Shared.Physics;
-using Robust.Shared.Physics.Shapes;
-using Robust.Shared.Physics.Systems;
 using Robust.Shared.Utility;
 
 namespace Robust.Shared.GameObjects;
-public abstract partial class OccluderSystem : ComponentTreeSystem<OccluderTreeComponent, OccluderComponent>
+public abstract class OccluderSystem : ComponentTreeSystem<OccluderTreeComponent, OccluderComponent>
 {
     public const float MaxRaycastRange = 100f;
-
-    [Dependency] private FixtureSystem _fixtureSystem = default!;
-
-    [Dependency] private EntityQuery<OccluderComponent> _occluderQuery;
-    [Dependency] private EntityQuery<TransformComponent> _xformQuery;
-
-    private readonly List<RayCastResults> _raycastResults = new();
 
     public override void Initialize()
     {
         base.Initialize();
-        SubscribeLocalEvent<OccluderComponent, ComponentInit>(OnCompInit);
-        SubscribeLocalEvent<OccluderComponent, AfterAutoHandleStateEvent>(OnAfterAutoHandleState);
+        SubscribeLocalEvent<OccluderComponent, ComponentGetState>(OnGetState);
+        SubscribeLocalEvent<OccluderComponent, ComponentHandleState>(OnHandleState);
     }
 
-    private void OnCompInit(EntityUid uid, OccluderComponent comp, ComponentInit args)
+    private void OnGetState(EntityUid uid, OccluderComponent comp, ref ComponentGetState args)
     {
-        UpdatePolygonCache(comp);
+        args.State = new OccluderComponent.OccluderComponentState(comp.Enabled, comp.BoundingBox);
     }
-
-    private void OnAfterAutoHandleState(EntityUid uid, OccluderComponent comp, ref AfterAutoHandleStateEvent args)
+    private void OnHandleState(EntityUid uid, OccluderComponent comp, ref ComponentHandleState args)
     {
-        UpdatePolygonCache(comp);
-        QueueTreeUpdate(uid, comp);
-        OnOccluderAfterAutoHandleState(uid, comp, ref args);
-    }
+        if (args.Current is not OccluderComponent.OccluderComponentState state)
+            return;
 
-    protected virtual void OnOccluderAfterAutoHandleState(EntityUid uid, OccluderComponent comp, ref AfterAutoHandleStateEvent args)
-    {
+        SetEnabled(uid, state.Enabled, comp);
+        SetBoundingBox(uid, state.BoundingBox, comp);
     }
 
     #region Component Tree Overrides
@@ -57,31 +43,20 @@ public abstract partial class OccluderSystem : ComponentTreeSystem<OccluderTreeC
     protected override Box2 ExtractAabb(in ComponentTreeEntry<OccluderComponent> entry)
     {
         DebugTools.Assert(entry.Transform.ParentUid == entry.Component.TreeUid);
-        var position = entry.Transform.LocalPosition;
-        return new Box2Rotated(
-            entry.Component.LocalBounds.Translated(position),
-            entry.Transform.LocalRotation,
-            position).CalcBoundingBox();
+        return entry.Component.BoundingBox.Translated(entry.Transform.LocalPosition);
     }
 
     protected override Box2 ExtractAabb(in ComponentTreeEntry<OccluderComponent> entry, Vector2 pos, Angle rot)
-        => new Box2Rotated(entry.Component.LocalBounds.Translated(pos), rot, pos).CalcBoundingBox();
+        => ExtractAabb(in entry);
     #endregion
 
     #region Setters
-    public virtual void SetPolygon(EntityUid uid, Vector2[]? polygon, OccluderComponent? comp = null)
+    public void SetBoundingBox(EntityUid uid, Box2 box, OccluderComponent? comp = null)
     {
         if (!Resolve(uid, ref comp))
             return;
 
-        comp.PolygonArray = polygon ??
-        [
-            new(-0.5f, 0.5f),
-            new(0.5f, 0.5f),
-            new(0.5f, -0.5f),
-            new(-0.5f, -0.5f),
-        ];
-        UpdatePolygonCache(comp);
+        comp.BoundingBox = box;
         Dirty(uid, comp);
 
         if (comp.TreeUid != null)
@@ -99,17 +74,6 @@ public abstract partial class OccluderSystem : ComponentTreeSystem<OccluderTreeC
     }
     #endregion
 
-    protected override void OnCompStartup(EntityUid uid, OccluderComponent component, ComponentStartup args)
-    {
-        UpdatePolygonCache(component);
-        base.OnCompStartup(uid, component, args);
-    }
-
-    private static void UpdatePolygonCache(OccluderComponent occluder)
-    {
-        occluder.LocalBounds = CalculateLocalBounds(occluder.Polygon);
-    }
-
     #region InRangeUnoccluded
 
     /// <summary>
@@ -126,53 +90,24 @@ public abstract partial class OccluderSystem : ComponentTreeSystem<OccluderTreeC
         if (!GetRay(origin, other, range, out var length, out var ray, out var result))
             return result;
 
-        IntersectRay(_raycastResults, origin.MapId, ray, length);
-        foreach (var rayResult in _raycastResults)
-        {
-            if (!_occluderQuery.TryComp(rayResult.HitEntity, out var occluder) ||
-                !_xformQuery.TryComp(rayResult.HitEntity, out var xform))
-            {
-                return false;
-            }
-
-            if (!ignore(new Entity<OccluderComponent, TransformComponent>(rayResult.HitEntity, occluder, xform), state))
-                return false;
-        }
-
-        return true;
+        return IntersectRay(origin.MapId, ray, length, state, ignore) == null;
     }
 
     /// <summary>
     /// Returns true if two points are within the specified range and there are no occluders between them.
     /// </summary>
-    /// <param name="ignoreTouching">If true, this will ignore occluders that contain the start or end point.</param>
+    /// <param name="ignoreTouching">If true, this will use <see cref="IsTouchingEndpoint"/> as a predicate to ignore \
+    /// occluders that are touching the start or end point.</param>
     public bool InRangeUnoccluded(MapCoordinates origin, MapCoordinates other, float range, bool ignoreTouching)
     {
         if (!GetRay(origin, other, range, out var length, out var ray, out var result))
             return result;
 
-        IntersectRay(_raycastResults, origin.MapId, ray, length);
-        foreach (var rayResult in _raycastResults)
-        {
-            if (!ignoreTouching)
-                return false;
+        if (!ignoreTouching)
+            return IntersectRay(origin.MapId, ray, length) == null;
 
-            if (!_occluderQuery.TryComp(rayResult.HitEntity, out var occluder) ||
-                !_xformQuery.TryComp(rayResult.HitEntity, out var xform))
-            {
-                return false;
-            }
-
-            if (ContainsPoint(occluder, xform, origin.Position) ||
-                ContainsPoint(occluder, xform, other.Position))
-            {
-                continue;
-            }
-
-            return false;
-        }
-
-        return true;
+        var state = (XformSystem, origin.Position, other.Position);
+        return IntersectRay(origin.MapId, ray, length, state, IsTouchingEndpoint) == null;
     }
 
     private bool GetRay(MapCoordinates origin, MapCoordinates other, float range, out float length, out Ray ray, out bool result)
@@ -206,33 +141,16 @@ public abstract partial class OccluderSystem : ComponentTreeSystem<OccluderTreeC
         return true;
     }
 
-    public bool ContainsPoint(OccluderComponent occluder, TransformComponent xform, Vector2 point)
+    /// <summary>
+    /// Simple predicate for use with <see cref="InRangeUnoccluded"/> that will ignore any occluders that intersect the
+    /// start and end points.
+    /// </summary>
+    public static bool IsTouchingEndpoint(Entity<OccluderComponent, TransformComponent> ent, (SharedTransformSystem Sys, Vector2 Start, Vector2 End) state)
     {
-        // Broadphase check
-        var (worldPosition, worldRotation) = XformSystem.GetWorldPositionRotation(xform);
-        var worldBounds = new Box2Rotated(
-            occluder.LocalBounds.Translated(worldPosition),
-            worldRotation,
-            worldPosition).CalcBoundingBox();
-
-        if (!worldBounds.Contains(point))
-            return false;
-
-        // Narrowphase check
-        var polygon = new Polygon(occluder.PolygonArray);
-        return polygon.VertexCount >= 3 &&
-               _fixtureSystem.TestPoint(polygon, new Transform(worldPosition, worldRotation), point);
+        var occluderBox = ent.Comp1.BoundingBox;
+        occluderBox = occluderBox.Translated(state.Sys.GetWorldPosition(ent.Comp2));
+        return occluderBox.Contains(state.Start) || occluderBox.Contains(state.End);
     }
 
-    private static Box2 CalculateLocalBounds(ReadOnlySpan<Vector2> polygon)
-    {
-        var bounds = new Box2(polygon[0], polygon[0]);
-        for (var i = 1; i < polygon.Length; i++)
-        {
-            bounds = bounds.ExtendToContain(polygon[i]);
-        }
-
-        return bounds;
-    }
     #endregion
 }

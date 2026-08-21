@@ -10,10 +10,10 @@ namespace Robust.Shared.Toolshed;
 public abstract partial class ToolshedCommand
 {
     [PublicAPI, IoC.Dependency]
-    protected IEntityManager EntityManager = default!;
+    protected readonly IEntityManager EntityManager = default!;
 
     [PublicAPI, IoC.Dependency]
-    protected IEntitySystemManager EntitySystemManager = default!;
+    protected readonly IEntitySystemManager EntitySystemManager = default!;
 
     /// <summary>
     ///     Returns the entity that's executing this command, if any.

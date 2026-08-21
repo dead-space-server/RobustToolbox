@@ -3,9 +3,9 @@ using Robust.Shared.Serialization;
 
 namespace Robust.Shared.Console.Commands;
 
-internal sealed partial class SerializeStatsCommand : LocalizedCommands
+internal sealed class SerializeStatsCommand : LocalizedCommands
 {
-    [Dependency] private IRobustSerializerInternal _robustSerializer = default!;
+    [Dependency] private readonly IRobustSerializerInternal _robustSerializer = default!;
 
     public override string Command => "szr_stats";
 

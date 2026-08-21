@@ -161,6 +161,7 @@ namespace Robust.UnitTesting.Shared.GameObjects
              var clientTime = client.ResolveDependency<IClientGameTiming>();
              var clientNetManager = client.ResolveDependency<IClientNetManager>();
 
+             var sMapManager = server.ResolveDependency<IMapManager>();
              var sEntManager = server.ResolveDependency<IEntityManager>();
              var sPlayerManager = server.ResolveDependency<IPlayerManager>();
              var serverTime = server.ResolveDependency<IGameTiming>();

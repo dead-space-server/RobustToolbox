@@ -28,10 +28,6 @@ public interface IResourceCache : IResourceManager
 
     bool TryGetResource(AudioStream stream, [NotNullWhen(true)] out AudioResource? resource);
 
-    bool TryRemoveResource<T>(string path) where T : BaseResource, IBaseResource, new();
-
-    bool TryRemoveResource<T>(ResPath path) where T : BaseResource, IBaseResource, new();
-
     void ReloadResource<T>(string path)
         where T : BaseResource, new();
 
