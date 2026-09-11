@@ -12,7 +12,6 @@ using Robust.Shared.Network;
 using Robust.Shared.Player;
 using Robust.Shared.Prototypes;
 using Robust.Shared.Reflection;
-using Robust.Shared.Threading;
 using Robust.Shared.Timing;
 using Robust.Shared.Utility;
 
@@ -23,7 +22,6 @@ public abstract class SharedUserInterfaceSystem : EntitySystem
     [Dependency] private   readonly IDynamicTypeFactory _factory = default!;
     [Dependency] private   readonly IGameTiming _timing = default!;
     [Dependency] private   readonly INetManager _netManager = default!;
-    [Dependency] private   readonly IParallelManager _parallel = default!;
     [Dependency] protected readonly IPrototypeManager ProtoManager = default!;
     [Dependency] private   readonly IReflectionManager _reflection = default!;
     [Dependency] protected readonly ISharedPlayerManager Player = default!;
@@ -1162,7 +1160,6 @@ public abstract class SharedUserInterfaceSystem : EntitySystem
         }
 
         var query = AllEntityQuery<ActiveUserInterfaceComponent, UserInterfaceComponent>();
-        // Run these in parallel because it's expensive.
         _rangeJob.ActorRanges.Clear();
 
         // Handles closing the BUI if actors move out of range of them.
@@ -1190,7 +1187,12 @@ public abstract class SharedUserInterfaceSystem : EntitySystem
             }
         }
 
-        _parallel.ProcessNow(_rangeJob, _rangeJob.ActorRanges.Count);
+        // BUI range checks raise content events. Those handlers may touch map or physics
+        // state, which is not safe to query from worker threads.
+        for (var i = 0; i < _rangeJob.ActorRanges.Count; i++)
+        {
+            _rangeJob.Execute(i);
+        }
 
         foreach (var data in _rangeJob.ActorRanges)
         {
@@ -1262,9 +1264,9 @@ public abstract class SharedUserInterfaceSystem : EntitySystem
     }
 
     /// <summary>
-    /// Used for running UI raycast checks in parallel.
+    /// Used for running UI range checks.
     /// </summary>
-    private record struct ActorRangeCheckJob() : IParallelRobustJob
+    private record struct ActorRangeCheckJob()
     {
         public required EntityQuery<TransformComponent> XformQuery;
         public required SharedUserInterfaceSystem System;
