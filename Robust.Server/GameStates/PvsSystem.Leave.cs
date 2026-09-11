@@ -40,6 +40,11 @@ internal sealed partial class PvsSystem
     /// </summary>
     private void ProcessLeavePvs(PvsSession session)
     {
+        // DS14-start
+        if (session.SerializationFailed)
+            return;
+        // DS14-end
+
         if (session.DisableCulling || session.Session.Status != SessionStatus.InGame)
             return;
 

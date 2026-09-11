@@ -25,7 +25,22 @@ internal sealed partial class PvsSystem
         using var _ = Histogram.WithLabels("Serialize States").NewTimer();
         var opts = new ParallelOptions {MaxDegreeOfParallelism = _parallelMgr.ParallelProcessCount};
         _oldestAck = GameTick.MaxValue.Value;
-        Parallel.For(-1, _sessions.Length, opts, SerializeState);
+        // DS14-start
+        try
+        {
+            Parallel.For(-1, _sessions.Length, opts, SerializeState);
+        }
+        finally
+        {
+            // Workers may have partially updated visibility or committed history before serialization failed.
+            // Reset only affected player sessions, after all serialization workers have finished.
+            foreach (var session in _sessions)
+            {
+                if (session.SerializationFailed)
+                    ForceFullState(session);
+            }
+        }
+        // DS14-end
     }
 
     /// <summary>
@@ -60,6 +75,7 @@ internal sealed partial class PvsSystem
     /// </summary>
     private void SerializeSessionState(PvsSession data)
     {
+        data.SerializationFailed = false; // DS14
         var serialized = false;
 
         try
@@ -82,8 +98,18 @@ internal sealed partial class PvsSystem
         {
             if (!serialized)
             {
+                data.SerializationFailed = true; // DS14
                 data.StateStream?.Dispose();
                 data.StateStream = null;
+                // DS14-start
+                data.LastSent = null;
+                if (data.ToSend is { } incomplete)
+                {
+                    // A completed list already belongs to PreviouslySent and is released by ForceFullState.
+                    _entDataListPool.Return(incomplete);
+                    data.ToSend = null;
+                }
+                // DS14-end
             }
 
             ReleasePooledStateData(data);

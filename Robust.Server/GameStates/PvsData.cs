@@ -127,6 +127,13 @@ internal sealed class PvsSession(ICommonSession session, ResizableMemoryRegion<P
     /// </summary>
     public MemoryStream? StateStream;
 
+    // DS14-start
+    /// <summary>
+    /// The current serialization attempt failed. Suppresses state/leave messages until the next attempt.
+    /// </summary>
+    public bool SerializationFailed;
+    // DS14-end
+
     /// <summary>
     /// Whether we should force reliable sending of the <see cref="MsgState"/>.
     /// </summary>

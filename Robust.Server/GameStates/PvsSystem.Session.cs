@@ -72,6 +72,7 @@ internal sealed partial class PvsSystem
         DebugTools.AssertNull(session.ToSend);
         DebugTools.AssertNull(session.State);
 
+        session.LastSent = null; // DS14: a missing history tick must not reuse an older leave baseline.
         session.FromTick = session.RequestedFull ? GameTick.Zero : session.LastReceivedAck;
         session.LastInput = _input.GetLastInputCommand(session.Session);
         session.LastMessage = _netEntMan.GetLastMessageSequence(session.Session);

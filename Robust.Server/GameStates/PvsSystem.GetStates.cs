@@ -90,7 +90,19 @@ internal sealed partial class PvsSystem
     {
         DebugTools.Assert(comp.NetSyncEnabled, $"Attempting to get component state for an un-synced component: {comp.GetType()}");
         stateEv.State = null;
-        _getStateHandlers![netId]?.Invoke(uid, comp, ref Unsafe.As<ComponentGetState, EntityEventBus.Unit>(ref stateEv));
+        // DS14-start
+        try
+        {
+            _getStateHandlers![netId]?.Invoke(uid, comp, ref Unsafe.As<ComponentGetState, EntityEventBus.Unit>(ref stateEv));
+        }
+        catch (Exception e)
+        {
+            var prototype = _metaQuery.TryGetComponent(uid, out var meta) ? meta.EntityPrototype?.ID : null;
+            throw new InvalidOperationException(
+                $"Failed to get state for entity {uid}, prototype {prototype ?? "<none>"}, " +
+                $"component {comp.GetType().FullName}.", e);
+        }
+        // DS14-end
         var state = stateEv.State;
         return state;
     }
@@ -160,108 +172,117 @@ internal sealed partial class PvsSystem
         var fromTick = pvsSession.FromTick;
 
         var toSend = _uidSetPool.Get();
-        DebugTools.Assert(toSend.Count == 0);
-        bool enumerateAll = false;
-        DebugTools.AssertEqual(toTick, _gameTiming.CurTick);
-        DebugTools.Assert(toTick > fromTick);
+        // DS14-start
+        try
+        {
+        // DS14-end
+            DebugTools.Assert(toSend.Count == 0);
+            bool enumerateAll = false;
+            DebugTools.AssertEqual(toTick, _gameTiming.CurTick);
+            DebugTools.Assert(toTick > fromTick);
 
-        // Null sessions imply this is a replay.
-        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-        if (session == null)
-        {
-            enumerateAll = fromTick == GameTick.Zero;
-        }
-        else if (!_seenAllEnts.Contains(session))
-        {
-            enumerateAll = true;
-            fromTick = GameTick.Zero;
-        }
-
-        if (toTick.Value - fromTick.Value > DirtyBufferSize)
-        {
-            // Fall back to enumerating over all entities.
-            enumerateAll = true;
-        }
-
-        if (enumerateAll)
-        {
-            var query = AllEntityQuery<MetaDataComponent>();
-            while (query.MoveNext(out var uid, out var md))
+            // Null sessions imply this is a replay.
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+            if (session == null)
             {
-                DebugTools.Assert(md.EntityLifeStage >= EntityLifeStage.Initialized, $"Entity {ToPrettyString(uid)} has not been initialized");
-                DebugTools.Assert(md.EntityLifeStage < EntityLifeStage.Terminating, $"Entity {ToPrettyString(uid)} is/has been terminated");
-                if (md.EntityLastModifiedTick <= fromTick)
-                    continue;
-
-                var state = GetEntityState(session, uid, fromTick, md);
-
-                if (state.Empty)
-                {
-                    Log.Error($@"{nameof(GetEntityState)} returned an empty state while enumerating entities.
-Tick: {fromTick}--{toTick}
-Entity: {ToPrettyString(uid)}
-Last modified: {md.EntityLastModifiedTick}
-Metadata last modified: {md.LastModifiedTick}
-Transform last modified: {Transform(uid).LastModifiedTick}");
-                }
-
-                pvsSession.States.Add(state);
+                enumerateAll = fromTick == GameTick.Zero;
             }
-        }
-        else
-        {
-            for (var i = fromTick.Value + 1; i <= toTick.Value; i++)
+            else if (!_seenAllEnts.Contains(session))
             {
-                if (!TryGetDirtyEntities(new GameTick(i), out var add, out var dirty))
-                {
-                    // This should be unreachable if `enumerateAll` is false.
-                    throw new Exception($"Failed to get tick dirty data. tick: {i}, from: {fromTick}, to {toTick}, buffer: {DirtyBufferSize}");
-                }
+                enumerateAll = true;
+                fromTick = GameTick.Zero;
+            }
 
-                foreach (var uid in add)
-                {
-                    if (!toSend.Add(uid) || !_metaQuery.TryGetComponent(uid, out var md))
-                        continue;
+            if (toTick.Value - fromTick.Value > DirtyBufferSize)
+            {
+                // Fall back to enumerating over all entities.
+                enumerateAll = true;
+            }
 
+            if (enumerateAll)
+            {
+                var query = AllEntityQuery<MetaDataComponent>();
+                while (query.MoveNext(out var uid, out var md))
+                {
                     DebugTools.Assert(md.EntityLifeStage >= EntityLifeStage.Initialized, $"Entity {ToPrettyString(uid)} has not been initialized");
                     DebugTools.Assert(md.EntityLifeStage < EntityLifeStage.Terminating, $"Entity {ToPrettyString(uid)} is/has been terminated");
-                    DebugTools.Assert(md.EntityLastModifiedTick >= md.CreationTick, $"Entity {ToPrettyString(uid)} last modified tick is less than creation tick");
-                    DebugTools.Assert(md.EntityLastModifiedTick > fromTick, $"Entity {ToPrettyString(uid)} last modified tick is less than from tick");
+                    if (md.EntityLastModifiedTick <= fromTick)
+                        continue;
 
                     var state = GetEntityState(session, uid, fromTick, md);
 
                     if (state.Empty)
                     {
-                        Log.Error($@"{nameof(GetEntityState)} returned an empty state for a new entity.
+                        Log.Error($@"{nameof(GetEntityState)} returned an empty state while enumerating entities.
 Tick: {fromTick}--{toTick}
 Entity: {ToPrettyString(uid)}
 Last modified: {md.EntityLastModifiedTick}
 Metadata last modified: {md.LastModifiedTick}
 Transform last modified: {Transform(uid).LastModifiedTick}");
-                        continue;
                     }
 
                     pvsSession.States.Add(state);
                 }
-
-                foreach (var uid in dirty)
+            }
+            else
+            {
+                for (var i = fromTick.Value + 1; i <= toTick.Value; i++)
                 {
-                    DebugTools.Assert(!add.Contains(uid));
-                    if (!toSend.Add(uid) || !_metaQuery.TryGetComponent(uid, out var md))
-                        continue;
+                    if (!TryGetDirtyEntities(new GameTick(i), out var add, out var dirty))
+                    {
+                        // This should be unreachable if `enumerateAll` is false.
+                        throw new Exception($"Failed to get tick dirty data. tick: {i}, from: {fromTick}, to {toTick}, buffer: {DirtyBufferSize}");
+                    }
 
-                    DebugTools.Assert(md.EntityLifeStage >= EntityLifeStage.Initialized, $"Entity {ToPrettyString(uid)} has not been initialized");
-                    DebugTools.Assert(md.EntityLifeStage < EntityLifeStage.Terminating, $"Entity {ToPrettyString(uid)} is/has been terminated");
-                    DebugTools.Assert(md.EntityLastModifiedTick >= md.CreationTick, $"Entity {ToPrettyString(uid)} last modified tick is less than creation tick");
-                    DebugTools.Assert(md.EntityLastModifiedTick > fromTick, $"Entity {ToPrettyString(uid)} last modified tick is less than from tick");
+                    foreach (var uid in add)
+                    {
+                        if (!toSend.Add(uid) || !_metaQuery.TryGetComponent(uid, out var md))
+                            continue;
 
-                    var state = GetEntityState(session, uid, fromTick, md);
-                    if (!state.Empty)
+                        DebugTools.Assert(md.EntityLifeStage >= EntityLifeStage.Initialized, $"Entity {ToPrettyString(uid)} has not been initialized");
+                        DebugTools.Assert(md.EntityLifeStage < EntityLifeStage.Terminating, $"Entity {ToPrettyString(uid)} is/has been terminated");
+                        DebugTools.Assert(md.EntityLastModifiedTick >= md.CreationTick, $"Entity {ToPrettyString(uid)} last modified tick is less than creation tick");
+                        DebugTools.Assert(md.EntityLastModifiedTick > fromTick, $"Entity {ToPrettyString(uid)} last modified tick is less than from tick");
+
+                        var state = GetEntityState(session, uid, fromTick, md);
+
+                        if (state.Empty)
+                        {
+                            Log.Error($@"{nameof(GetEntityState)} returned an empty state for a new entity.
+Tick: {fromTick}--{toTick}
+Entity: {ToPrettyString(uid)}
+Last modified: {md.EntityLastModifiedTick}
+Metadata last modified: {md.LastModifiedTick}
+Transform last modified: {Transform(uid).LastModifiedTick}");
+                            continue;
+                        }
+
                         pvsSession.States.Add(state);
+                    }
+
+                    foreach (var uid in dirty)
+                    {
+                        DebugTools.Assert(!add.Contains(uid));
+                        if (!toSend.Add(uid) || !_metaQuery.TryGetComponent(uid, out var md))
+                            continue;
+
+                        DebugTools.Assert(md.EntityLifeStage >= EntityLifeStage.Initialized, $"Entity {ToPrettyString(uid)} has not been initialized");
+                        DebugTools.Assert(md.EntityLifeStage < EntityLifeStage.Terminating, $"Entity {ToPrettyString(uid)} is/has been terminated");
+                        DebugTools.Assert(md.EntityLastModifiedTick >= md.CreationTick, $"Entity {ToPrettyString(uid)} last modified tick is less than creation tick");
+                        DebugTools.Assert(md.EntityLastModifiedTick > fromTick, $"Entity {ToPrettyString(uid)} last modified tick is less than from tick");
+
+                        var state = GetEntityState(session, uid, fromTick, md);
+                        if (!state.Empty)
+                            pvsSession.States.Add(state);
+                    }
                 }
             }
+        // DS14-start
         }
-
-        _uidSetPool.Return(toSend);
+        finally
+        {
+            _uidSetPool.Return(toSend);
+        }
+        // DS14-end
     }
 }

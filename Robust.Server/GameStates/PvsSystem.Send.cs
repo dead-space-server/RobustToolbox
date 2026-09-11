@@ -47,6 +47,11 @@ internal sealed partial class PvsSystem
 
         try
         {
+            // DS14-start
+            if (data.SerializationFailed)
+                return;
+            // DS14-end
+
             // PVS benchmarks use dummy sessions.
             // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
             if (data.Session.Channel is not DummyChannel)
