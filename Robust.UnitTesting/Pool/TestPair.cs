@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -38,6 +38,8 @@ public abstract partial class TestPair<TServer, TClient> : ITestPair, IAsyncDisp
 
     private int _nextServerSeed;
     private int _nextClientSeed;
+
+    private string? _owner;
 
     public int ServerSeed { get; set; }
     public int ClientSeed { get; set; }
@@ -150,7 +152,18 @@ public abstract partial class TestPair<TServer, TClient> : ITestPair, IAsyncDisp
         if (State != PairState.Ready)
             throw new InvalidOperationException($"Pair is not ready to use. State: {State}");
 
+        _owner = TestContext.CurrentContext.Test.ID;
         State = PairState.InUse;
+    }
+
+    internal bool OwnsCheckout()
+    {
+        return _owner != null && _owner == TestContext.CurrentContext.Test.ID;
+    }
+
+    internal void ReleaseCheckout()
+    {
+        _owner = null;
     }
 
     public async Task AddToHistory(string testName)
