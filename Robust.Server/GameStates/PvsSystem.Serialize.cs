@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Prometheus;
 using Robust.Shared.GameObjects;
@@ -15,7 +14,7 @@ namespace Robust.Server.GameStates;
 
 internal sealed partial class PvsSystem
 {
-    [Dependency] private readonly IRobustSerializer _serializer = default!;
+    [Dependency] private IRobustSerializer _serializer = default!;
 
     /// <summary>
     /// Get and serialize <see cref="GameState"/> objects for each player. Compressing & sending the states is done later.
@@ -29,7 +28,7 @@ internal sealed partial class PvsSystem
     }
 
     /// <summary>
-    /// Get and serialize a <see cref="GameState"/> for a single session (or the current replay).
+    /// Get and serialize a <see cref="GameState"/> for a single session (or update the current replay).
     /// </summary>
     private void SerializeState(int i)
     {
@@ -60,11 +59,11 @@ internal sealed partial class PvsSystem
     /// </summary>
     private void SerializeSessionState(PvsSession data)
     {
+        // DS14-start: a failed serialization neither sends a half-written stream nor keeps the pooled states
         var serialized = false;
-
         try
         {
-            ComputeSessionState(data);
+            var state = ComputeSessionState(data);
             InterlockedHelper.Min(ref _oldestAck, data.FromTick.Value);
             DebugTools.AssertEqual(data.StateStream, null);
 
@@ -73,7 +72,7 @@ internal sealed partial class PvsSystem
             if (data.Session.Channel is not DummyChannel)
             {
                 data.StateStream = RobustMemoryManager.GetMemoryStream();
-                _serializer.SerializeDirect(data.StateStream, data.State);
+                _serializer.SerializeDirect(data.StateStream, state);
             }
 
             serialized = true;
@@ -86,27 +85,8 @@ internal sealed partial class PvsSystem
                 data.StateStream = null;
             }
 
-            ReleasePooledStateData(data);
-            data.ClearState();
+            ClearSessionState(data);
         }
-    }
-
-    private void ReleasePooledStateData(PvsSession data)
-    {
-        var states = data.States;
-        for (var i = 0; i < states.Count; i++)
-        {
-            var state = states[i];
-            var changes = state.ComponentChanges.Value;
-
-            if (changes is List<ComponentChange> list)
-                _componentChangeListPool.Return(list);
-
-            if (state.NetComponents == null)
-                continue;
-
-            _netComponentSetPool.Return(state.NetComponents);
-            state.NetComponents = null;
-        }
+        // DS14-end
     }
 }

@@ -21,8 +21,8 @@ namespace Robust.Shared.Configuration
     [Virtual]
     internal partial class ConfigurationManager : IConfigurationManagerInternal
     {
-        [Dependency] private readonly IGameTiming _gameTiming = default!;
-        [Dependency] private readonly ILogManager _logManager = default!;
+        [Dependency] private IGameTiming _gameTiming = default!;
+        [Dependency] private ILogManager _logManager = default!;
 
         private const char TABLE_DELIMITER = '.';
         protected readonly Dictionary<string, ConfigVar> _configVars = new();
@@ -74,6 +74,24 @@ namespace Robust.Shared.Configuration
             return LoadFromTomlTable(tblRoot);
         }
 
+        /// <inheritdoc />
+        public HashSet<string> ValidateTomlStream(Stream file)
+        {
+            TomlTable tblRoot;
+            try
+            {
+                tblRoot = Toml.ReadStream(file);
+            }
+            catch (Exception e)
+            {
+                _sawmill.Error("Unable to load configuration from table:\n{0}", e);
+                return [];
+            }
+
+            return ValidateTomlTable(tblRoot);
+        }
+
+        /// <inheritdoc />
         private HashSet<string> LoadFromTomlTable(TomlTable table)
         {
             var loaded = new HashSet<string>();
@@ -94,6 +112,17 @@ namespace Robust.Shared.Configuration
             {
                 RunDeferredInvokeCallbacks(in callbackEvents);
             }
+
+            return loaded;
+        }
+
+        /// <inheritdoc />
+        private HashSet<string> ValidateTomlTable(TomlTable table)
+        {
+            var loaded = new HashSet<string>();
+
+            foreach (var (cvar, _) in ParseCVarValuesFromToml(table))
+                loaded.Add(cvar);
 
             return loaded;
         }

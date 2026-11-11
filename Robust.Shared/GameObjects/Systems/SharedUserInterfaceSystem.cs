@@ -10,22 +10,20 @@ using Robust.Shared.GameStates;
 using Robust.Shared.IoC;
 using Robust.Shared.Network;
 using Robust.Shared.Player;
-using Robust.Shared.Prototypes;
 using Robust.Shared.Reflection;
 using Robust.Shared.Timing;
 using Robust.Shared.Utility;
 
 namespace Robust.Shared.GameObjects;
 
-public abstract class SharedUserInterfaceSystem : EntitySystem
+public abstract partial class SharedUserInterfaceSystem : EntitySystem
 {
-    [Dependency] private   readonly IDynamicTypeFactory _factory = default!;
-    [Dependency] private   readonly IGameTiming _timing = default!;
-    [Dependency] private   readonly INetManager _netManager = default!;
-    [Dependency] protected readonly IPrototypeManager ProtoManager = default!;
-    [Dependency] private   readonly IReflectionManager _reflection = default!;
-    [Dependency] protected readonly ISharedPlayerManager Player = default!;
-    [Dependency] private   readonly SharedTransformSystem _transforms = default!;
+    [Dependency] private IDynamicTypeFactory _factory = default!;
+    [Dependency] private IGameTiming _timing = default!;
+    [Dependency] private INetManager _netManager = default!;
+    [Dependency] private IReflectionManager _reflection = default!;
+    [Dependency] protected ISharedPlayerManager Player = default!;
+    [Dependency] private SharedTransformSystem _transforms = default!;
 
     private EntityQuery<IgnoreUIRangeComponent> _ignoreUIRangeQuery;
     private EntityQuery<TransformComponent> _xformQuery;
@@ -105,6 +103,9 @@ public abstract class SharedUserInterfaceSystem : EntitySystem
             return;
         }
 
+        var received = new BoundUserInterfaceMessageReceivedEvent(sender, uid, msg.UiKey);
+        RaiseLocalEvent(ref received);
+
         // If it's not an open message check we're even a subscriber.
         if (msg.Message is not OpenBoundInterfaceMessage &&
             (!uiComp.Actors.TryGetValue(msg.UiKey, out var actors) ||
@@ -120,11 +121,11 @@ public abstract class SharedUserInterfaceSystem : EntitySystem
         {
             var attempt = new BoundUserInterfaceMessageAttempt(sender, uid, msg.UiKey, msg.Message);
 
-            RaiseLocalEvent(attempt);
+            RaiseLocalEvent(ref attempt);
             if (attempt.Cancelled)
                 return;
 
-            RaiseLocalEvent(uid, attempt);
+            RaiseLocalEvent(uid, ref attempt);
             if (attempt.Cancelled)
                 return;
         }
@@ -303,12 +304,14 @@ public abstract class SharedUserInterfaceSystem : EntitySystem
 
     private void OnUserInterfaceGetState(Entity<UserInterfaceComponent> ent, ref ComponentGetState args)
     {
-        if (args.FromTick > ent.Comp.CreationTick && ent.Comp.LastFieldUpdate >= args.FromTick)
+        if (args.FromTick > ent.Comp.CreationTick)
         {
-            var fields = EntityManager.GetModifiedFields(ent.Comp, args.FromTick);
+            var aspects = EntityManager.GetModifiedAspects(ent.Comp, args.FromTick);
 
-            switch (fields)
+            switch (aspects)
             {
+                case >= DeltaAspect.Unclassified:
+                    break;
                 case 1 << 0:
                 {
                     var state = new UserInterfaceActorsDeltaState();

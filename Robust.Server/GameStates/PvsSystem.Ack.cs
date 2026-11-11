@@ -26,12 +26,12 @@ internal sealed partial class PvsSystem
         if (!PlayerData.TryGetValue(session, out var sessionData))
             return;
 
-        if (ackedTick <= sessionData.LastReceivedAck)
-            return;
-
-        sessionData.LastReceivedAck = ackedTick;
         lock (PendingAcks)
         {
+            if (ackedTick <= sessionData.LastReceivedAck)
+                return;
+
+            sessionData.LastReceivedAck = ackedTick;
             PendingAcks.Add(session);
         }
     }
@@ -42,6 +42,7 @@ internal sealed partial class PvsSystem
     /// <param name="histogram"></param>
     private WaitHandle? ProcessQueuedAcks()
     {
+        // DS14-start: under the same lock as OnClientAck and ProcessDisconnections
         lock (PendingAcks)
         {
             if (PendingAcks.Count == 0)
@@ -57,6 +58,7 @@ internal sealed partial class PvsSystem
 
             PendingAcks.Clear();
         }
+        // DS14-end
 
         if (!_async)
         {
