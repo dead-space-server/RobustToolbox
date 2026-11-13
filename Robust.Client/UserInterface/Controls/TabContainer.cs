@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using Robust.Client.Graphics;
 using Robust.Shared.Input;
@@ -150,7 +151,7 @@ namespace Robust.Client.UserInterface.Controls
             // First, draw panel.
             var headerSize = _enclosingTabHeight;
             var panel = _getPanel();
-            var panelBox = new UIBox2(0, headerSize, PixelWidth, PixelHeight);
+            var panelBox = new UIBox2(0, headerSize, PixelWidth, Math.Max(PixelHeight, headerSize));
 
             panel?.Draw(handle, panelBox, UIScale);
 
@@ -296,7 +297,7 @@ namespace Robust.Client.UserInterface.Controls
 
             var headerSize = (int)_enclosingTabHeight;
             var panel = _getPanel();
-            var contentBox = new UIBox2i(0, headerSize, (int) (finalSize.X * UIScale), (int) (finalSize.Y * UIScale));
+            var contentBox = new UIBox2i(0, headerSize, (int) (finalSize.X * UIScale), Math.Max((int) (finalSize.Y * UIScale), headerSize));
             if (panel != null)
             {
                 contentBox = (UIBox2i) panel.GetContentBox(contentBox, UIScale);
@@ -325,14 +326,49 @@ namespace Robust.Client.UserInterface.Controls
 
             args.Handle();
 
+            if (!TryGetHoveredTab(args.RelativePixelPosition, out var index))
+            {
+                return;
+            }
+
+            CurrentTab = index.Value;
+        }
+
+        protected internal override void MouseMove(GUIMouseMoveEventArgs args)
+        {
+            base.MouseMove(args);
+
+            DefaultCursorShape = TryGetHoveredTab(args.RelativePixelPosition, out _)
+                ? CursorShape.Pointer
+                : CursorShape.Arrow;
+        }
+
+        protected internal override void MouseExited()
+        {
+            base.MouseExited();
+
+            DefaultCursorShape = CursorShape.Arrow;
+        }
+
+        private bool TryGetHoveredTab(Vector2 position, [NotNullWhen(true)] out int? index)
+        {
+            index = null;
+
+            if (!TabsVisible || position.Y < 0 || position.Y > _enclosingTabHeight)
+            {
+                return false;
+            }
+
             foreach (var box in _tabBoxes)
             {
-                if (box.Bounding.Contains(args.RelativePixelPosition))
+                if (box.Bounding.Contains(position))
                 {
-                    CurrentTab = box.Index;
-                    return;
+                    index = box.Index;
+                    return true;
                 }
             }
+
+            return false;
         }
 
         [System.Diagnostics.Contracts.Pure]

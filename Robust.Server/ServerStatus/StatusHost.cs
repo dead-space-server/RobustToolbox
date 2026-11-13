@@ -33,11 +33,11 @@ namespace Robust.Server.ServerStatus
     {
         private const string Sawmill = "statushost";
 
-        [Dependency] private readonly IConfigurationManager _cfg = default!;
-        [Dependency] private readonly IServerNetManager _netManager = default!;
-        [Dependency] private readonly IPlayerManager _playerManager = default!;
-        [Dependency] private readonly IDependencyCollection _deps = default!;
-        [Dependency] private readonly ILogManager _logMan = default!;
+        [Dependency] private IConfigurationManager _cfg = default!;
+        [Dependency] private IServerNetManager _netManager = default!;
+        [Dependency] private IPlayerManager _playerManager = default!;
+        [Dependency] private IDependencyCollection _deps = default!;
+        [Dependency] private ILogManager _logMan = default!;
 
         private readonly List<StatusHostHandlerAsync> _handlers = new();
         private HttpListener? _listener;
@@ -194,6 +194,12 @@ namespace Robust.Server.ServerStatus
                 SetCVarIfUnmodified(CVars.BuildManifestHash, info.ManifestHash ?? "");
                 SetCVarIfUnmodified(CVars.BuildManifestDownloadUrl, info.ManifestDownloadUrl ?? "");
                 SetCVarIfUnmodified(CVars.BuildManifestUrl, info.ManifestUrl ?? "");
+                SetCVarIfUnmodified(CVars.SourceUrl, info.SourceUrl ?? "");
+                SetCVarIfUnmodified(CVars.SourceCommitId, info.SourceCommitId ?? "");
+                SetCVarIfUnmodified(CVars.SourceBranchName, info.SourceBranchName ?? "");
+                SetCVarIfUnmodified(CVars.EngineSourceBranchName, info.EngineSourceBranchName ?? "");
+                SetCVarIfUnmodified(CVars.EngineSourceUrl, info.EngineSourceUrl ?? "");
+                SetCVarIfUnmodified(CVars.EngineSourceCommitId, info.EngineSourceCommitId ?? "");
             }
 
             void SetCVarIfUnmodified(CVarDef<string> cvar, string val)
@@ -231,7 +237,20 @@ namespace Robust.Server.ServerStatus
             [property: JsonPropertyName("manifest_url")]
             string? ManifestUrl,
             [property: JsonPropertyName("manifest_download_url")]
-            string? ManifestDownloadUrl);
+            string? ManifestDownloadUrl,
+            [property: JsonPropertyName("built_on_source_url")]
+            string? SourceUrl,
+            [property: JsonPropertyName("built_on_commit_id")]
+            string? SourceCommitId,
+            [property: JsonPropertyName("built_on_branch_name")]
+            string? SourceBranchName,
+            [property: JsonPropertyName("built_on_engine_url")]
+            string? EngineSourceUrl,
+            [property: JsonPropertyName("built_on_engine_commit_id")]
+            string? EngineSourceCommitId,
+            [property: JsonPropertyName("built_on_engine_branch_name")]
+            string? EngineSourceBranchName
+        );
 
         private sealed class ContextImpl : IStatusHandlerContext
         {
