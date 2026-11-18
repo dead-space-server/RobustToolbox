@@ -17,6 +17,7 @@ internal sealed partial class PvsSystem
     private readonly HashSet<EntityUid> _forceOverrideSet = new();
     private readonly HashSet<EntityUid> _globalOverrideSet = new();
     private readonly HashSet<EntityUid> _globalOverrideExpandedSet = new();
+    private readonly List<EntityUid> _staleOverrides = new(); // DS14
 
     private void AddAllOverrides(PvsSession session)
     {
@@ -33,13 +34,15 @@ internal sealed partial class PvsSystem
                 AddEntity(session, ref ent, ref meta, fromTick);
         }
 
-        if (!_pvsOverride.SessionOverrides.TryGetValue(session.Session, out var sessionOverrides))
-            return;
-
-        foreach (var uid in sessionOverrides)
+        if (_pvsOverride.SessionOverrides.TryGetValue(session.Session, out var sessionOverrides))
         {
-            RecursivelyAddOverride(session, uid, fromTick, addChildren: true, mask);
+            foreach (var uid in sessionOverrides)
+            {
+                RecursivelyAddOverride(session, uid, fromTick, addChildren: true, mask);
+            }
         }
+
+        FlushStaleOverrides(); // DS14
     }
 
     /// <summary>
@@ -66,13 +69,15 @@ internal sealed partial class PvsSystem
             RecursivelyAddOverride(session, uid, fromTick, addChildren: false, mask);
         }
 
-        if (!_pvsOverride.SessionForceSend.TryGetValue(session.Session, out var sessionForce))
-            return;
-
-        foreach (var uid in sessionForce)
+        if (_pvsOverride.SessionForceSend.TryGetValue(session.Session, out var sessionForce))
         {
-            RecursivelyAddOverride(session, uid, fromTick, addChildren: false, mask);
+            foreach (var uid in sessionForce)
+            {
+                RecursivelyAddOverride(session, uid, fromTick, addChildren: false, mask);
+            }
         }
+
+        FlushStaleOverrides(); // DS14
     }
 
     private int RaiseExpandEvent(PvsSession session, GameTick fromTick)
@@ -110,8 +115,7 @@ internal sealed partial class PvsSystem
     {
         if (!_xformQuery.TryGetComponent(uid, out var xform))
         {
-            // Can happen if systems add deleted entities to PVS move event.
-            Log.Error($"Attempted to add non-existent entity {uid} to PVS override for session {session.Session}");
+            _staleOverrides.Add(uid); // DS14
             return false;
         }
 
@@ -137,6 +141,17 @@ internal sealed partial class PvsSystem
             RecursivelyAddChildren(session, xform, fromTick, mask);
 
         return true;
+    }
+
+    // DS14
+    private void FlushStaleOverrides()
+    {
+        foreach (var uid in _staleOverrides)
+        {
+            _pvsOverride.RemoveStale(uid);
+        }
+
+        _staleOverrides.Clear();
     }
 
     /// <summary>

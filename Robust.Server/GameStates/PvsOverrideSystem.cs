@@ -119,16 +119,36 @@ public sealed partial class PvsOverrideSystem : SharedPvsOverrideSystem
 
         ForceSend.Remove(uid);
         GlobalOverride.Remove(uid);
-        foreach (var (session, set) in SessionOverrides)
+        RemoveFromSessionMap(SessionOverrides, uid);
+        RemoveFromSessionMap(SessionForceSend, uid);
+    }
+
+    // DS14
+    internal void RemoveStale(EntityUid uid)
+    {
+        _hasOverride.Remove(uid);
+        ForceSend.Remove(uid);
+        GlobalOverride.Remove(uid);
+        RemoveFromSessionMap(SessionOverrides, uid);
+        RemoveFromSessionMap(SessionForceSend, uid);
+    }
+
+    // DS14
+    private static void RemoveFromSessionMap(Dictionary<ICommonSession, HashSet<EntityUid>> map, EntityUid uid)
+    {
+        List<ICommonSession>? empty = null;
+        foreach (var (session, set) in map)
         {
             if (set.Remove(uid) && set.Count == 0)
-                SessionOverrides.Remove(session);
+                (empty ??= new List<ICommonSession>()).Add(session);
         }
 
-        foreach (var (session, set) in SessionForceSend)
+        if (empty == null)
+            return;
+
+        foreach (var session in empty)
         {
-            if (set.Remove(uid) && set.Count == 0)
-                SessionForceSend.Remove(session);
+            map.Remove(session);
         }
     }
 
