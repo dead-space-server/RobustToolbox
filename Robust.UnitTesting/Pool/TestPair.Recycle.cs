@@ -126,6 +126,7 @@ public partial class TestPair<TServer, TClient>
         }
         finally
         {
+            ReleaseCheckout();
             DebugTools.Assert(State is PairState.Dead or PairState.Ready);
             ClearContext();
             Manager.Return(this);
@@ -134,6 +135,10 @@ public partial class TestPair<TServer, TClient>
 
     public async ValueTask DisposeAsync()
     {
+        if (!OwnsCheckout())
+            return;
+
+        ReleaseCheckout();
         switch (State)
         {
             case PairState.Dead:
