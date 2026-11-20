@@ -70,6 +70,10 @@ internal sealed partial class PvsSystem : EntitySystem
     /// </summary>
     private float _priorityViewSize;
 
+    // DS14-start
+    private float _detailDistance = -1f;
+    // DS14-end
+
     /// <summary>
     /// Per-tick ack data to avoid re-allocating.
     /// </summary>
@@ -155,6 +159,8 @@ internal sealed partial class PvsSystem : EntitySystem
         Subs.CVar(_configManager, CVars.NetForceAckThreshold, OnForceAckChanged, true);
         Subs.CVar(_configManager, CVars.NetPvsAsync, OnAsyncChanged, true);
         Subs.CVar(_configManager, CVars.NetPvsCompressLevel, ResetParallelism, true);
+        Subs.CVar(_configManager, CVars.NetPvsDetailRange, OnDetailRangeChanged, true); // DS14
+        SubscribeLocalEvent<PvsDetailChangedEvent>(OnDetailChanged); // DS14
 
         _serverGameStateManager.ClientAck += OnClientAck;
         _serverGameStateManager.ClientRequestFull += OnClientRequestFull;
@@ -293,6 +299,19 @@ internal sealed partial class PvsSystem : EntitySystem
     {
         _priorityViewSize = Math.Max(_viewSize, value);
     }
+
+    // DS14-start
+    private void OnDetailRangeChanged(float value)
+    {
+        _detailDistance = value > 0f ? value + ChunkSize / 2f : -1f;
+    }
+
+    private void OnDetailChanged(ref PvsDetailChangedEvent ev)
+    {
+        if (TryComp(ev.Uid, out MetaDataComponent? meta) && meta.LastPvsLocation is { } location)
+            DirtyChunk(location);
+    }
+    // DS14-end
 
     private void OnForceAckChanged(int value)
     {

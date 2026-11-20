@@ -76,6 +76,14 @@ internal sealed class PvsChunk
     private List<ChunkEntity> _lowPriorityChildren = new();
     private List<ChunkEntity> _anchoredChildren = new();
 
+    // DS14-start
+    private List<ChunkEntity> _detail = new();
+    private List<HashSet<EntityUid>> _detailSets = new();
+    private List<HashSet<EntityUid>> _nextDetailSets = new();
+
+    public int DetailStart;
+    // DS14-end
+
     /// <summary>
     /// Effective "counts" of <see cref="Contents"/> that should be used to limit the number of entities in a chunk that
     /// get sent to players. This can be used to add a crude "level of detail" for distant chunks.
@@ -137,6 +145,12 @@ internal sealed class PvsChunk
         DebugTools.AssertEqual(_anchoredChildren.Count, 0);
         DebugTools.AssertEqual(_lowPriorityChildren.Count, 0);
 
+        // DS14-start
+        _detail.Clear();
+        _detailSets.Clear();
+        _nextDetailSets.Clear();
+        // DS14-end
+
         Contents.EnsureCapacity(Children.Count + (AttachedChunkEntity == null ? 0 : 1));
         _lowPriorityChildren.EnsureCapacity(Children.Count);
         var nextSetTotal = 0;
@@ -169,6 +183,17 @@ internal sealed class PvsChunk
 
             childMeta.LastPvsLocation = Location;
 
+            // DS14-start
+            var subCount = childXform._children.Count;
+            if ((childMeta.Flags & MetaDataFlags.PvsDetail) != 0)
+            {
+                _detail.Add(new(child, childMeta));
+                if (subCount > 0)
+                    _detailSets.Add(childXform._children);
+                continue;
+            }
+            // DS14-end
+
             if ((childMeta.Flags & MetaDataFlags.PvsPriority) == MetaDataFlags.PvsPriority)
                 Contents.Add(new ChunkEntity(child, childMeta));
             else if (childXform.Anchored)
@@ -176,7 +201,6 @@ internal sealed class PvsChunk
             else
                 _lowPriorityChildren.Add(new(child, childMeta));
 
-            var subCount = childXform._children.Count;
             if (subCount == 0)
                 continue;
 
@@ -188,7 +212,7 @@ internal sealed class PvsChunk
         LodCounts[0] = Contents.Count;
         LodCounts[1] = LodCounts[0] + _anchoredChildren.Count;
         LodCounts[2] = LodCounts[1] + _lowPriorityChildren.Count;
-        LodCounts[3] = LodCounts[2] + nextSetTotal;
+        LodCounts[3] = LodCounts[2];
 
         // Next, add the lower priority children.
         Contents.AddRange(_anchoredChildren);
@@ -197,6 +221,7 @@ internal sealed class PvsChunk
         _anchoredChildren.Clear();
 
         // Next, we recursively add all grand-children
+        var depth = 0; // DS14
         while (nextSetTotal > 0)
         {
             Contents.EnsureCapacity(Contents.Count + nextSetTotal);
@@ -216,9 +241,20 @@ internal sealed class PvsChunk
                     }
 
                     childMeta.LastPvsLocation = Location;
+
+                    // DS14-start
+                    var subCount = childXform._children.Count;
+                    if ((childMeta.Flags & MetaDataFlags.PvsDetail) != 0)
+                    {
+                        _detail.Add(new(child, childMeta));
+                        if (subCount > 0)
+                            _detailSets.Add(childXform._children);
+                        continue;
+                    }
+                    // DS14-end
+
                     Contents.Add(new(child, childMeta));
 
-                    var subCount = childXform._children.Count;
                     if (subCount == 0)
                         continue;
 
@@ -228,13 +264,61 @@ internal sealed class PvsChunk
             }
             _childSets.Clear();
             (_childSets, _nextChildSets) = (_nextChildSets, _childSets);
+
+            // DS14-start
+            if (depth++ == 0)
+                LodCounts[3] = Contents.Count;
+            // DS14-end
         }
 
         LodCounts[4] = Contents.Count;
+
+        // DS14-start
+        DetailStart = Contents.Count;
+        if (!PopulateDetail(meta, xform))
+            return false;
+        // DS14-end
+
         Dirty = false;
         ValidateChunk(xform);
         return true;
     }
+
+    // DS14-start
+    private bool PopulateDetail(EntityQuery<MetaDataComponent> meta, EntityQuery<TransformComponent> xform)
+    {
+        Contents.AddRange(_detail);
+        _detail.Clear();
+
+        while (_detailSets.Count > 0)
+        {
+            foreach (var childSet in _detailSets)
+            {
+                foreach (var child in childSet)
+                {
+                    if (!meta.TryGetComponent(child, out var childMeta)
+                        || !xform.TryGetComponent(child, out var childXform)
+                        || childMeta.EntityLifeStage >= EntityLifeStage.Terminating)
+                    {
+                        DebugTools.Assert($"PVS chunk contains a delete or terminating entity: {child}");
+                        MarkDirty();
+                        return false;
+                    }
+
+                    childMeta.LastPvsLocation = Location;
+                    Contents.Add(new(child, childMeta));
+                    if (childXform._children.Count > 0)
+                        _nextDetailSets.Add(childXform._children);
+                }
+            }
+
+            _detailSets.Clear();
+            (_detailSets, _nextDetailSets) = (_nextDetailSets, _detailSets);
+        }
+
+        return true;
+    }
+    // DS14-end
 
     [Conditional("DEBUG")]
     private void ValidateChunk(EntityQuery<TransformComponent> query)
@@ -243,7 +327,9 @@ internal sealed class PvsChunk
         DebugTools.Assert(LodCounts[1] <= LodCounts[2]);
         DebugTools.Assert(LodCounts[2] <= LodCounts[3]);
         DebugTools.Assert(LodCounts[3] <= LodCounts[4]);
-        DebugTools.AssertEqual(LodCounts[4], Contents.Count());
+        DebugTools.Assert(LodCounts[4] <= Contents.Count); // DS14
+        DebugTools.AssertEqual(_detail.Count, 0); // DS14
+        DebugTools.AssertEqual(_detailSets.Count, 0); // DS14
 
         DebugTools.AssertEqual(_childSets.Count, 0);
         DebugTools.AssertEqual(_nextChildSets.Count, 0);
@@ -283,6 +369,12 @@ internal sealed class PvsChunk
         Contents.Clear();
         _nextChildSets.Clear();
         _childSets.Clear();
+        // DS14-start
+        _detail.Clear();
+        _detailSets.Clear();
+        _nextDetailSets.Clear();
+        DetailStart = 0;
+        // DS14-end
     }
 
     public void Wipe()

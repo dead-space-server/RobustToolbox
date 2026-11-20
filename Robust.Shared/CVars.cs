@@ -280,6 +280,11 @@ namespace Robust.Shared
         public static readonly CVarDef<bool> NetPvsAsync =
             CVarDef.Create("net.pvs_async", true, CVar.ARCHIVE | CVar.SERVERONLY);
 
+        // DS14-start
+        public static readonly CVarDef<float> NetPvsDetailRange =
+            CVarDef.Create("net.pvs_detail_range", 0f, CVar.ARCHIVE | CVar.SERVERONLY);
+        // DS14-end
+
         /// <summary>
         /// View size to take for PVS calculations, as the size of the sides of a square centered on the view points of
         /// clients. See also <see cref="NetPvsPriorityRange"/>.
