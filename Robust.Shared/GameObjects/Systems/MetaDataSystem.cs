@@ -139,7 +139,17 @@ public abstract partial class MetaDataSystem : EntitySystem
             return;
 
         if (enabled)
+        {
+            // DS14-start
+            var added = flags & ~entity.Comp.Flags;
             entity.Comp.Flags |= flags;
+            if ((added & MetaDataFlags.PvsDetail) != 0)
+            {
+                var ev = new PvsDetailChangedEvent(entity.Owner);
+                RaiseLocalEvent(ref ev);
+            }
+            // DS14-end
+        }
         else
             RemoveFlag(entity, flags, entity.Comp);
     }
@@ -166,8 +176,21 @@ public abstract partial class MetaDataSystem : EntitySystem
         RaiseLocalEvent(uid, ref ev, true);
 
         component.Flags &= ~ev.ToRemove;
+
+        // DS14-start
+        if ((ev.ToRemove & MetaDataFlags.PvsDetail) != 0)
+        {
+            var changed = new PvsDetailChangedEvent(uid);
+            RaiseLocalEvent(ref changed);
+        }
+        // DS14-end
     }
 }
+
+// DS14-start
+[ByRefEvent]
+public readonly record struct PvsDetailChangedEvent(EntityUid Uid);
+// DS14-end
 
 /// <summary>
 /// Raised if <see cref="MetaDataSystem"/> is trying to remove a particular flag.

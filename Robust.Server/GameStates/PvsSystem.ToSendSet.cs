@@ -52,6 +52,11 @@ internal sealed partial class PvsSystem
             ? chunk.Contents.Count
             : chunk.LodCounts[0];
 
+        // DS14-start
+        if (_detailDistance >= 0f && distance > _detailDistance)
+            count = Math.Min(count, chunk.DetailStart);
+        // DS14-end
+
         // Send entities on the chunk.
         var span = CollectionsMarshal.AsSpan(chunk.Contents)[..count];
         foreach (ref var ent in span)

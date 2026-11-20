@@ -249,6 +249,10 @@ namespace Robust.Shared.GameObjects
         /// Indicates this entity represents server-managed map or grid PVS chunk data.
         /// </summary>
         ChunkEntity = 1 << 6,
+
+        // DS14-start
+        PvsDetail = 1 << 7,
+        // DS14-end
     }
 
     /// <summary>
